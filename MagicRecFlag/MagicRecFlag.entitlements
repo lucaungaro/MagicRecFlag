@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Required to receive video from AVCaptureDevice -->
+    <key>com.apple.security.device.camera</key>
+    <true/>
+
+    <!-- Required to inject keyboard events into other apps via CGEvent -->
+    <!-- Note: this must be paired with Accessibility approval in System Settings -->
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+
+    <!-- Allows launching and activating other applications -->
+    <key>com.apple.security.app-sandbox</key>
+    <false/>
+</dict>
+</plist>

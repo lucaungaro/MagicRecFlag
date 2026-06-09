@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleName</key>
+    <string>Magic Rec Flag</string>
+    <key>CFBundleDisplayName</key>
+    <string>Magic Rec Flag</string>
+    <key>CFBundleIdentifier</key>
+    <string>com.yourname.magicrecflag</string>
+    <key>CFBundleVersion</key>
+    <string>1</string>
+    <key>CFBundleShortVersionString</key>
+    <string>1.0</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleExecutable</key>
+    <string>Magic Rec Flag</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>13.0</string>
+    <key>LSApplicationCategoryType</key>
+    <string>public.app-category.video</string>
+
+    <!-- Camera access -->
+    <key>NSCameraUsageDescription</key>
+    <string>Magic Rec Flag needs camera access to monitor the video feed from your capture device for the red tally signal.</string>
+
+    <!-- Accessibility (for CGEvent keystroke injection) -->
+    <key>NSAppleEventsUsageDescription</key>
+    <string>Magic Rec Flag needs Accessibility access to send keyboard shortcuts to your recording application.</string>
+
+    <!-- App is an agent (no dock icon while in live mode is optional) -->
+    <key>LSUIElement</key>
+    <false/>
+
+    <key>NSPrincipalClass</key>
+    <string>NSApplication</string>
+
+    <key>NSHighResolutionCapable</key>
+    <true/>
+</dict>
+</plist>

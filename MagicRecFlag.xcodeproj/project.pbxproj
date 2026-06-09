@@ -1,0 +1,367 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A001 /* MagicRecFlagApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F001 /* MagicRecFlagApp.swift */; };
+		A002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F002 /* AppDelegate.swift */; };
+		A003 /* AppState.swift in Sources */ = {isa = PBXBuildFile; fileRef = F003 /* AppState.swift */; };
+		A004 /* SetupContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F004 /* SetupContainerView.swift */; };
+		A005 /* DevicePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F005 /* DevicePickerView.swift */; };
+		A006 /* ROISelectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F006 /* ROISelectorView.swift */; };
+		A007 /* AppPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F007 /* AppPickerView.swift */; };
+		A008 /* HotkeySetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F008 /* HotkeySetupView.swift */; };
+		A009 /* ConfirmLaunchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F009 /* ConfirmLaunchView.swift */; };
+		A010 /* CaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F010 /* CaptureEngine.swift */; };
+		A011 /* ROIAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = F011 /* ROIAnalyzer.swift */; };
+		A012 /* ActionDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012 /* ActionDispatcher.swift */; };
+		A013 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013 /* HUDWindowController.swift */; };
+		A014 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F014 /* Info.plist */; };
+
+		/* Frameworks */
+		B001 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C001 /* AVFoundation.framework */; };
+		B002 /* CoreImage.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C002 /* CoreImage.framework */; };
+		B003 /* CoreGraphics.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C003 /* CoreGraphics.framework */; };
+		B004 /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C004 /* AppKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		F001 /* MagicRecFlagApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MagicRecFlagApp.swift; sourceTree = "<group>"; };
+		F002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		F003 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
+		F004 /* SetupContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetupContainerView.swift; sourceTree = "<group>"; };
+		F005 /* DevicePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DevicePickerView.swift; sourceTree = "<group>"; };
+		F006 /* ROISelectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ROISelectorView.swift; sourceTree = "<group>"; };
+		F007 /* AppPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPickerView.swift; sourceTree = "<group>"; };
+		F008 /* HotkeySetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotkeySetupView.swift; sourceTree = "<group>"; };
+		F009 /* ConfirmLaunchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConfirmLaunchView.swift; sourceTree = "<group>"; };
+		F010 /* CaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptureEngine.swift; sourceTree = "<group>"; };
+		F011 /* ROIAnalyzer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ROIAnalyzer.swift; sourceTree = "<group>"; };
+		F012 /* ActionDispatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDispatcher.swift; sourceTree = "<group>"; };
+		F013 /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
+		F014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		FAPP /* Magic Rec Flag.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Magic Rec Flag.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+
+		/* Frameworks */
+		C001 /* AVFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AVFoundation.framework; path = System/Library/Frameworks/AVFoundation.framework; sourceTree = SDKROOT; };
+		C002 /* CoreImage.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreImage.framework; path = System/Library/Frameworks/CoreImage.framework; sourceTree = SDKROOT; };
+		C003 /* CoreGraphics.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreGraphics.framework; path = System/Library/Frameworks/CoreGraphics.framework; sourceTree = SDKROOT; };
+		C004 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		PHASE_FW /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B001 /* AVFoundation.framework in Frameworks */,
+				B002 /* CoreImage.framework in Frameworks */,
+				B003 /* CoreGraphics.framework in Frameworks */,
+				B004 /* AppKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		ROOT_GROUP = {
+			isa = PBXGroup;
+			children = (
+				GRP_APP /* App */,
+				GRP_MODELS /* Models */,
+				GRP_SETUP /* Setup */,
+				GRP_CAPTURE /* Capture */,
+				GRP_DETECTION /* Detection */,
+				GRP_HUD /* HUD */,
+				GRP_ACTIONS /* Actions */,
+				GRP_RESOURCES /* Resources */,
+				GRP_FW /* Frameworks */,
+				GRP_PRODUCTS /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		GRP_APP /* App */ = {
+			isa = PBXGroup;
+			children = (
+				F001 /* MagicRecFlagApp.swift */,
+				F002 /* AppDelegate.swift */,
+			);
+			path = MagicRecFlag/Sources/App;
+			sourceTree = "<group>";
+		};
+		GRP_MODELS /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				F003 /* AppState.swift */,
+			);
+			path = MagicRecFlag/Sources/Models;
+			sourceTree = "<group>";
+		};
+		GRP_SETUP /* Setup */ = {
+			isa = PBXGroup;
+			children = (
+				F004 /* SetupContainerView.swift */,
+				F005 /* DevicePickerView.swift */,
+				F006 /* ROISelectorView.swift */,
+				F007 /* AppPickerView.swift */,
+				F008 /* HotkeySetupView.swift */,
+				F009 /* ConfirmLaunchView.swift */,
+			);
+			path = MagicRecFlag/Sources/Setup;
+			sourceTree = "<group>";
+		};
+		GRP_CAPTURE /* Capture */ = {
+			isa = PBXGroup;
+			children = (
+				F010 /* CaptureEngine.swift */,
+			);
+			path = MagicRecFlag/Sources/Capture;
+			sourceTree = "<group>";
+		};
+		GRP_DETECTION /* Detection */ = {
+			isa = PBXGroup;
+			children = (
+				F011 /* ROIAnalyzer.swift */,
+			);
+			path = MagicRecFlag/Sources/Detection;
+			sourceTree = "<group>";
+		};
+		GRP_HUD /* HUD */ = {
+			isa = PBXGroup;
+			children = (
+				F013 /* HUDWindowController.swift */,
+			);
+			path = MagicRecFlag/Sources/HUD;
+			sourceTree = "<group>";
+		};
+		GRP_ACTIONS /* Actions */ = {
+			isa = PBXGroup;
+			children = (
+				F012 /* ActionDispatcher.swift */,
+			);
+			path = MagicRecFlag/Sources/Actions;
+			sourceTree = "<group>";
+		};
+		GRP_RESOURCES /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				F014 /* Info.plist */,
+			);
+			path = MagicRecFlag/Resources;
+			sourceTree = "<group>";
+		};
+		GRP_FW /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				C001 /* AVFoundation.framework */,
+				C002 /* CoreImage.framework */,
+				C003 /* CoreGraphics.framework */,
+				C004 /* AppKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		GRP_PRODUCTS /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				FAPP /* Magic Rec Flag.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TARGET1 /* Magic Rec Flag */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = BCLLIST_TARGET /* Build configuration list for PBXNativeTarget "Magic Rec Flag" */;
+			buildPhases = (
+				PHASE_SRC /* Sources */,
+				PHASE_FW /* Frameworks */,
+				PHASE_RES /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Magic Rec Flag";
+			productName = "Magic Rec Flag";
+			productReference = FAPP /* Magic Rec Flag.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PROJECT /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1500;
+				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					TARGET1 = {
+						CreatedOnToolsVersion = 15.0;
+					};
+				};
+			};
+			buildConfigurationList = BCLLIST_PROJECT /* Build configuration list for PBXProject "MagicRecFlag" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = ROOT_GROUP;
+			productRefGroup = GRP_PRODUCTS /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TARGET1 /* Magic Rec Flag */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		PHASE_RES /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		PHASE_SRC /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A001 /* MagicRecFlagApp.swift in Sources */,
+				A002 /* AppDelegate.swift in Sources */,
+				A003 /* AppState.swift in Sources */,
+				A004 /* SetupContainerView.swift in Sources */,
+				A005 /* DevicePickerView.swift in Sources */,
+				A006 /* ROISelectorView.swift in Sources */,
+				A007 /* AppPickerView.swift in Sources */,
+				A008 /* HotkeySetupView.swift in Sources */,
+				A009 /* ConfirmLaunchView.swift in Sources */,
+				A010 /* CaptureEngine.swift in Sources */,
+				A011 /* ROIAnalyzer.swift in Sources */,
+				A012 /* ActionDispatcher.swift in Sources */,
+				A013 /* HUDWindowController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		BC_PROJECT_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		BC_PROJECT_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CODE_SIGN_STYLE = Automatic;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 13.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		BC_TARGET_DEBUG /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "MagicRecFlag/MagicRecFlag.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MagicRecFlag/Resources/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourname.magicrecflag;
+				PRODUCT_NAME = "Magic Rec Flag";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/MagicRecFlag/Sources/**";
+			};
+			name = Debug;
+		};
+		BC_TARGET_RELEASE /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = "MagicRecFlag/MagicRecFlag.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = MagicRecFlag/Resources/Info.plist;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yourname.magicrecflag;
+				PRODUCT_NAME = "Magic Rec Flag";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.9;
+				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/MagicRecFlag/Sources/**";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		BCLLIST_PROJECT /* Build configuration list for PBXProject "MagicRecFlag" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC_PROJECT_DEBUG /* Debug */,
+				BC_PROJECT_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		BCLLIST_TARGET /* Build configuration list for PBXNativeTarget "Magic Rec Flag" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BC_TARGET_DEBUG /* Debug */,
+				BC_TARGET_RELEASE /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+	};
+	rootObject = PROJECT /* Project object */;
+}
