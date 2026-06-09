@@ -71,6 +71,12 @@ struct SetupContainerView: View {
             .padding(.vertical, 14)
         }
         .background(Color(NSColor.windowBackgroundColor))
+        .onAppear {
+            // If we have a complete saved configuration, jump straight to the confirm step
+            if state.isFullyConfigured {
+                currentStep = .confirm
+            }
+        }
     }
 
     // MARK: – Step pill
@@ -105,7 +111,7 @@ struct SetupContainerView: View {
     private var canAdvance: Bool {
         switch currentStep {
         case .device:    return state.selectedDevice != nil
-        case .roi:       return true   // always has a default rect
+        case .roi:       return true
         case .targetApp: return state.targetAppURL != nil
         case .hotkeys:   return state.recordHotkey.isValid && state.stopHotkey.isValid
         case .confirm:   return false
@@ -113,10 +119,11 @@ struct SetupContainerView: View {
     }
 
     private func launchLiveMode() {
+        state.saveToDefaults()
         state.isLiveMode = true
         HUDWindowController.shared.show()
         CaptureEngine.shared.start()
-        // Close the setup window
-        NSApp.windows.first { $0.title.contains("Setup") }?.close()
+        // Hide (not close) so we can restore it when the user stops live mode
+        NSApp.windows.first { !($0 is NSPanel) }?.orderOut(nil)
     }
 }

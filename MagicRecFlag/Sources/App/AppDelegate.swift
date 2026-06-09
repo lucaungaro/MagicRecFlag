@@ -4,6 +4,7 @@ import AVFoundation
 class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppState.shared.loadFromDefaults()
         requestPermissions()
     }
 

@@ -92,9 +92,10 @@ struct ROIOverlayView: View {
                         )
                 )
 
-            // ROI box
+            // ROI box — contentShape fills the interior so dragging anywhere inside moves it
             Rectangle()
                 .stroke(Color.yellow, lineWidth: 2)
+                .contentShape(Rectangle())
                 .frame(width: pixelRect.width, height: pixelRect.height)
                 .position(x: pixelRect.midX, y: pixelRect.midY)
                 .gesture(
