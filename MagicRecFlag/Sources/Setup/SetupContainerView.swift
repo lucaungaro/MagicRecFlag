@@ -93,16 +93,18 @@ struct SetupContainerView: View {
                 .font(.caption)
                 .fontWeight(active ? .semibold : .regular)
                 .foregroundColor(active ? .primary : .secondary)
+                .lineLimit(1)
+                .fixedSize()
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity)
         .background(active ? Color.accentColor.opacity(0.08) : Color.clear)
         .cornerRadius(6)
         if step != SetupStep.allCases.last {
             Rectangle()
                 .fill(Color.secondary.opacity(0.25))
-                .frame(height: 1)
-                .frame(maxWidth: .infinity)
+                .frame(width: 16, height: 1)
         }
     }
 
