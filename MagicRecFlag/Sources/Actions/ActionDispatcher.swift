@@ -6,27 +6,18 @@ final class ActionDispatcher {
 
     static let shared = ActionDispatcher()
 
-    private var pendingStop: DispatchWorkItem?
-
     // MARK: – Public triggers
 
     func triggerRecord() {
-        // Cancel any queued stop — the signal came back before the delay elapsed
-        pendingStop?.cancel()
-        pendingStop = nil
         AppState.shared.isRecording = true
         HUDWindowController.shared.setState(.recording)
         performAction(hotkey: AppState.shared.recordHotkey)
     }
 
     func triggerStop() {
-        let work = DispatchWorkItem { [weak self] in
-            AppState.shared.isRecording = false
-            HUDWindowController.shared.setState(.standby)
-            self?.performAction(hotkey: AppState.shared.stopHotkey)
-        }
-        pendingStop = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0, execute: work)
+        AppState.shared.isRecording = false
+        HUDWindowController.shared.setState(.standby)
+        performAction(hotkey: AppState.shared.stopHotkey)
     }
 
     // MARK: – Core action
