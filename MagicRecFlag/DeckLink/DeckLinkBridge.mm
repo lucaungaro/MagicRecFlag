@@ -109,6 +109,7 @@ public:
     IDeckLinkInput_v14_2_1 *inputRef;   // non-owning; DLCaptureSession holds the ref
     DLFrameCallback          frameCallback;
     BMDPixelFormat           pixelFormat     { bmdFormat8BitBGRA };
+    BMDDisplayMode           configuredMode  { (BMDDisplayMode)0 };  // 0 = "not yet set"
     int                      frameLogCounter { 0 };
     std::atomic<ULONG>       refCount        { 1 };
 
@@ -116,22 +117,30 @@ public:
         : inputRef(input), frameCallback(cb) {}
 
     // Called when format-detection identifies the incoming signal format.
-    HRESULT VideoInputFormatChanged(BMDVideoInputFormatChangedEvents,
+    HRESULT VideoInputFormatChanged(BMDVideoInputFormatChangedEvents notificationEvents,
                                     IDeckLinkDisplayMode *newMode,
                                     BMDDetectedVideoInputFormatFlags detectedFlags) override {
         if (!inputRef) return S_OK;
+
+        // Only act when the display mode itself changed — ignore field-dominance or
+        // colorspace-only changes, and skip if we are already configured for this mode.
+        // Without these guards the callback fires in an infinite loop.
+        if (!(notificationEvents & bmdVideoInputDisplayModeChanged)) return S_OK;
+
         BMDDisplayMode mode = newMode->GetDisplayMode();
-        NSLog(@"[DLCapture] VideoInputFormatChanged → mode 0x%08X, detectedFlags 0x%08X",
+        if (mode == configuredMode) return S_OK;
+
+        configuredMode = mode;
+        NSLog(@"[DLCapture] Reconfiguring → mode 0x%08X, detectedFlags 0x%08X",
               (unsigned)mode, (unsigned)detectedFlags);
 
-        inputRef->PauseStreams();
-        inputRef->FlushStreams();
+        inputRef->StopStreams();
 
-        // Try BGRA first; fall back to ARGB if the device doesn't support BGRA for this mode.
+        // Try BGRA first; fall back to ARGB if the device rejects BGRA for this mode.
         HRESULT hr = inputRef->EnableVideoInput(mode, bmdFormat8BitBGRA,
                                                 bmdVideoInputEnableFormatDetection);
         if (hr != S_OK) {
-            NSLog(@"[DLCapture] BGRA not supported for this mode (0x%08X), trying ARGB", (unsigned)hr);
+            NSLog(@"[DLCapture] BGRA rejected (0x%08X), falling back to ARGB", (unsigned)hr);
             pixelFormat = bmdFormat8BitARGB;
             hr = inputRef->EnableVideoInput(mode, bmdFormat8BitARGB,
                                             bmdVideoInputEnableFormatDetection);
