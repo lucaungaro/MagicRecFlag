@@ -25,7 +25,7 @@ struct DevicePickerView: View {
         }
         .padding(24)
         .onChange(of: vm.selectedID) { id in
-            applySelection(id: id)
+            DispatchQueue.main.async { applySelection(id: id) }
         }
         .onAppear {
             vm.refresh()
