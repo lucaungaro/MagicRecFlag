@@ -134,7 +134,9 @@ public:
         NSLog(@"[DLCapture] Reconfiguring → mode 0x%08X, detectedFlags 0x%08X",
               (unsigned)mode, (unsigned)detectedFlags);
 
-        inputRef->StopStreams();
+        // Blackmagic SDK: do NOT call StopStreams() inside this callback — may deadlock.
+        // Correct pattern: PauseStreams → EnableVideoInput → FlushStreams → StartStreams.
+        inputRef->PauseStreams();
 
         // Try BGRA first; fall back to ARGB if the device rejects BGRA for this mode.
         HRESULT hr = inputRef->EnableVideoInput(mode, bmdFormat8BitBGRA,
@@ -149,6 +151,7 @@ public:
         }
 
         if (hr == S_OK) {
+            inputRef->FlushStreams();
             inputRef->StartStreams();
         } else {
             NSLog(@"[DLCapture] EnableVideoInput in FormatChanged failed: 0x%08X", (unsigned)hr);
