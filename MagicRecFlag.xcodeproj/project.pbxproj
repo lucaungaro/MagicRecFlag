@@ -21,6 +21,7 @@
 		A012 /* ActionDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012 /* ActionDispatcher.swift */; };
 		A013 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013 /* HUDWindowController.swift */; };
 		A014 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F014 /* Info.plist */; };
+		A015 /* DeckLinkBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F016 /* DeckLinkBridge.mm */; };
 
 		/* Frameworks */
 		B001 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C001 /* AVFoundation.framework */; };
@@ -44,6 +45,9 @@
 		F012 /* ActionDispatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDispatcher.swift; sourceTree = "<group>"; };
 		F013 /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
 		F014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F015 /* DeckLinkBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DeckLinkBridge.h; sourceTree = "<group>"; };
+		F016 /* DeckLinkBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DeckLinkBridge.mm; sourceTree = "<group>"; };
+		F017 /* MagicRecFlag-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MagicRecFlag-Bridging-Header.h"; sourceTree = "<group>"; };
 		FAPP /* Magic Rec Flag.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Magic Rec Flag.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 
 		/* Frameworks */
@@ -78,6 +82,7 @@
 				GRP_DETECTION /* Detection */,
 				GRP_HUD /* HUD */,
 				GRP_ACTIONS /* Actions */,
+				GRP_DECKLINK /* DeckLink */,
 				GRP_RESOURCES /* Resources */,
 				GRP_FW /* Frameworks */,
 				GRP_PRODUCTS /* Products */,
@@ -152,6 +157,16 @@
 				F014 /* Info.plist */,
 			);
 			path = MagicRecFlag/Resources;
+			sourceTree = "<group>";
+		};
+		GRP_DECKLINK /* DeckLink */ = {
+			isa = PBXGroup;
+			children = (
+				F015 /* DeckLinkBridge.h */,
+				F016 /* DeckLinkBridge.mm */,
+				F017 /* MagicRecFlag-Bridging-Header.h */,
+			);
+			path = MagicRecFlag/DeckLink;
 			sourceTree = "<group>";
 		};
 		GRP_FW /* Frameworks */ = {
@@ -254,6 +269,7 @@
 				A011 /* ROIAnalyzer.swift in Sources */,
 				A012 /* ActionDispatcher.swift in Sources */,
 				A013 /* HUDWindowController.swift in Sources */,
+				A015 /* DeckLinkBridge.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -317,6 +333,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/MagicRecFlag/Sources/**";
+				SWIFT_OBJC_BRIDGING_HEADER = "MagicRecFlag/DeckLink/MagicRecFlag-Bridging-Header.h";
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/MagicRecFlag/DeckLink";
 			};
 			name = Debug;
 		};
@@ -336,6 +354,8 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.9;
 				SWIFT_INCLUDE_PATHS = "$(SRCROOT)/MagicRecFlag/Sources/**";
+				SWIFT_OBJC_BRIDGING_HEADER = "MagicRecFlag/DeckLink/MagicRecFlag-Bridging-Header.h";
+				HEADER_SEARCH_PATHS = "$(SRCROOT)/MagicRecFlag/DeckLink";
 			};
 			name = Release;
 		};
