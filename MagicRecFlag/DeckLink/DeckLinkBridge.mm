@@ -134,22 +134,35 @@ public:
         long width    = videoFrame->GetWidth();
         long height   = videoFrame->GetHeight();
         long rowBytes = videoFrame->GetRowBytes();
-        void *bytes   = nullptr;
-        if (videoFrame->GetBytes(&bytes) != S_OK || !bytes) return S_OK;
 
-        // Wrap in a non-copying CVPixelBuffer — valid for the duration of this call.
-        CVPixelBufferRef pb = nullptr;
-        CVReturn status = CVPixelBufferCreateWithBytes(
-            kCFAllocatorDefault,
-            (size_t)width, (size_t)height,
-            kCVPixelFormatType_32BGRA,
-            bytes, (size_t)rowBytes,
-            nullptr, nullptr, nullptr, &pb);
+        // SDK 16.0: pixel data is accessed via IDeckLinkVideoBuffer
+        IDeckLinkVideoBuffer *videoBuffer = nullptr;
+        if (videoFrame->QueryInterface(IID_IDeckLinkVideoBuffer, (void **)&videoBuffer) != S_OK)
+            return S_OK;
 
-        if (status == kCVReturnSuccess && pb) {
-            frameCallback(pb);          // synchronous — pb is still valid here
-            CVPixelBufferRelease(pb);
+        if (videoBuffer->StartAccess(bmdBufferAccessRead) != S_OK) {
+            videoBuffer->Release();
+            return S_OK;
         }
+
+        void *bytes = nullptr;
+        if (videoBuffer->GetBytes(&bytes) == S_OK && bytes) {
+            // Wrap in a non-copying CVPixelBuffer — valid while access is held.
+            CVPixelBufferRef pb = nullptr;
+            CVReturn status = CVPixelBufferCreateWithBytes(
+                kCFAllocatorDefault,
+                (size_t)width, (size_t)height,
+                kCVPixelFormatType_32BGRA,
+                bytes, (size_t)rowBytes,
+                nullptr, nullptr, nullptr, &pb);
+            if (status == kCVReturnSuccess && pb) {
+                frameCallback(pb);      // synchronous — bytes still valid here
+                CVPixelBufferRelease(pb);
+            }
+        }
+
+        videoBuffer->EndAccess(bmdBufferAccessRead);
+        videoBuffer->Release();
         return S_OK;
     }
 
