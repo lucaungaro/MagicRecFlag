@@ -1,17 +1,19 @@
 #import "DeckLinkBridge.h"
-#import "SDK/DeckLinkAPI.h"   // place DeckLinkAPI.h from the Desktop Video SDK here
+#import "SDK/DeckLinkAPI.h"
+#import "SDK/DeckLinkAPIVideoInput_v14_2_1.h"   // IDeckLinkInput_v14_2_1, IDeckLinkInputCallback_v14_2_1
+#import "SDK/DeckLinkAPIVideoFrame_v14_2_1.h"   // IDeckLinkVideoInputFrame_v14_2_1 (GetBytes on frame)
 #include <atomic>
 
 // ============================================================================
-// Runtime loading — we find DeckLinkAPI.bundle that Desktop Video installs.
-// This replaces DeckLinkAPIDispatch.cpp so only the .h file is needed.
+// Runtime loading — finds the DeckLinkAPI.bundle installed by Desktop Video.
+// This replaces DeckLinkAPIDispatch.cpp; only the SDK headers are needed.
 // ============================================================================
 
 static CFBundleRef getDeckLinkBundle(void) {
     static CFBundleRef sBundle = nullptr;
     static dispatch_once_t sOnce;
     dispatch_once(&sOnce, ^{
-        // 1. Try by bundle ID (may already be loaded by the system)
+        // 1. Try by bundle ID (may already be loaded by the system extension)
         sBundle = CFBundleGetBundleWithIdentifier(
             CFSTR("com.blackmagic-design.desktopvideo.DeckLinkAPI"));
         if (sBundle) { CFRetain(sBundle); return; }
@@ -99,19 +101,19 @@ static IDeckLinkIterator* createDeckLinkIterator(void) {
 @end
 
 // ============================================================================
-// Input callback (C++ COM object)
+// Input callback — uses v14_2_1 interfaces to match the installed driver
 // ============================================================================
 
-class DLInputCallbackImpl : public IDeckLinkInputCallback {
+class DLInputCallbackImpl : public IDeckLinkInputCallback_v14_2_1 {
 public:
-    IDeckLinkInput   *inputRef;      // non-owning; DLCaptureSession holds the ref
-    DLFrameCallback   frameCallback;
-    std::atomic<ULONG> refCount { 1 };
+    IDeckLinkInput_v14_2_1 *inputRef;   // non-owning; DLCaptureSession holds the ref
+    DLFrameCallback          frameCallback;
+    std::atomic<ULONG>       refCount { 1 };
 
-    DLInputCallbackImpl(IDeckLinkInput *input, DLFrameCallback cb)
+    DLInputCallbackImpl(IDeckLinkInput_v14_2_1 *input, DLFrameCallback cb)
         : inputRef(input), frameCallback(cb) {}
 
-    // Called when format detection identifies the incoming signal format.
+    // Called when format-detection identifies a new signal format.
     HRESULT VideoInputFormatChanged(BMDVideoInputFormatChangedEvents,
                                     IDeckLinkDisplayMode *newMode,
                                     BMDDetectedVideoInputFormatFlags) override {
@@ -126,48 +128,35 @@ public:
     }
 
     // Called for each captured frame.
-    HRESULT VideoInputFrameArrived(IDeckLinkVideoInputFrame *videoFrame,
+    // In Desktop Video ≤ 14.x, GetBytes lives directly on the frame.
+    HRESULT VideoInputFrameArrived(IDeckLinkVideoInputFrame_v14_2_1 *videoFrame,
                                    IDeckLinkAudioInputPacket *) override {
         if (!videoFrame || !frameCallback) return S_OK;
         if (videoFrame->GetFlags() & bmdFrameHasNoInputSource) return S_OK;
 
-        long width    = videoFrame->GetWidth();
-        long height   = videoFrame->GetHeight();
-        long rowBytes = videoFrame->GetRowBytes();
+        long   width    = videoFrame->GetWidth();
+        long   height   = videoFrame->GetHeight();
+        long   rowBytes = videoFrame->GetRowBytes();
+        void  *bytes    = nullptr;
+        if (videoFrame->GetBytes(&bytes) != S_OK || !bytes) return S_OK;
 
-        // SDK 16.0: pixel data is accessed via IDeckLinkVideoBuffer
-        IDeckLinkVideoBuffer *videoBuffer = nullptr;
-        if (videoFrame->QueryInterface(IID_IDeckLinkVideoBuffer, (void **)&videoBuffer) != S_OK)
-            return S_OK;
+        CVPixelBufferRef pb = nullptr;
+        CVReturn status = CVPixelBufferCreateWithBytes(
+            kCFAllocatorDefault,
+            (size_t)width, (size_t)height,
+            kCVPixelFormatType_32BGRA,
+            bytes, (size_t)rowBytes,
+            nullptr, nullptr, nullptr, &pb);
 
-        if (videoBuffer->StartAccess(bmdBufferAccessRead) != S_OK) {
-            videoBuffer->Release();
-            return S_OK;
+        if (status == kCVReturnSuccess && pb) {
+            frameCallback(pb);
+            CVPixelBufferRelease(pb);
         }
-
-        void *bytes = nullptr;
-        if (videoBuffer->GetBytes(&bytes) == S_OK && bytes) {
-            // Wrap in a non-copying CVPixelBuffer — valid while access is held.
-            CVPixelBufferRef pb = nullptr;
-            CVReturn status = CVPixelBufferCreateWithBytes(
-                kCFAllocatorDefault,
-                (size_t)width, (size_t)height,
-                kCVPixelFormatType_32BGRA,
-                bytes, (size_t)rowBytes,
-                nullptr, nullptr, nullptr, &pb);
-            if (status == kCVReturnSuccess && pb) {
-                frameCallback(pb);      // synchronous — bytes still valid here
-                CVPixelBufferRelease(pb);
-            }
-        }
-
-        videoBuffer->EndAccess(bmdBufferAccessRead);
-        videoBuffer->Release();
         return S_OK;
     }
 
-    ULONG  AddRef()  override { return ++refCount; }
-    ULONG  Release() override { ULONG n = --refCount; if (n == 0) delete this; return n; }
+    ULONG   AddRef()  override { return ++refCount; }
+    ULONG   Release() override { ULONG n = --refCount; if (n == 0) delete this; return n; }
     HRESULT QueryInterface(REFIID, LPVOID *ppv) override {
         if (ppv) *ppv = nullptr;
         return E_NOINTERFACE;
@@ -179,8 +168,8 @@ public:
 // ============================================================================
 
 @interface DLCaptureSession () {
-    IDeckLinkInput       *_input;
-    DLInputCallbackImpl  *_cb;
+    IDeckLinkInput_v14_2_1 *_input;
+    DLInputCallbackImpl     *_cb;
 }
 @end
 
@@ -189,43 +178,38 @@ public:
 - (nullable instancetype)initWithDevice:(DLDevice *)device {
     if (!(self = [super init])) return nil;
 
-    // Re-enumerate to get a guaranteed-fresh IDeckLink reference.
-    // The stored deckLinkRef may have been obtained on a different thread or
-    // across a navigation boundary; a fresh iterator is safer.
+    // Re-enumerate for a fresh IDeckLink reference (avoids stale pointer issues).
     NSString *targetName = device.name;
     IDeckLinkIterator *it = createDeckLinkIterator();
     if (!it) { NSLog(@"[DLCaptureSession] DeckLink runtime not available"); return nil; }
 
-    IDeckLink *foundDL = nullptr;
-    IDeckLink *dl      = nullptr;
+    IDeckLink *foundDL = nullptr, *dl = nullptr;
     while (it->Next(&dl) == S_OK) {
         CFStringRef nameRef = nullptr;
         if (dl->GetDisplayName(&nameRef) == S_OK && nameRef) {
             NSString *name = CFBridgingRelease(nameRef);
-            if ([name isEqualToString:targetName]) {
-                foundDL = dl;   // keep the ref from Next()
-                break;
-            }
+            if ([name isEqualToString:targetName]) { foundDL = dl; break; }
         }
         dl->Release();
     }
     it->Release();
 
     if (!foundDL) {
-        NSLog(@"[DLCaptureSession] Device '%@' not found during re-enumeration", targetName);
+        NSLog(@"[DLCaptureSession] Device '%@' not found", targetName);
         return nil;
     }
 
+    // Query for the v14_2_1 input interface — compatible with Desktop Video 14.x and later.
     void *ptr  = nullptr;
-    HRESULT hr = foundDL->QueryInterface(IID_IDeckLinkInput, &ptr);
-    foundDL->Release();   // we only need IDeckLinkInput from here on
+    HRESULT hr = foundDL->QueryInterface(IID_IDeckLinkInput_v14_2_1, &ptr);
+    foundDL->Release();
 
     if (hr != S_OK) {
-        NSLog(@"[DLCaptureSession] QueryInterface(IDeckLinkInput) failed: 0x%08X", (unsigned)hr);
+        NSLog(@"[DLCaptureSession] QueryInterface(IDeckLinkInput_v14_2_1) failed: 0x%08X", (unsigned)hr);
         return nil;
     }
 
-    _input = (IDeckLinkInput *)ptr;   // QueryInterface already AddRef'd
+    _input = (IDeckLinkInput_v14_2_1 *)ptr;
     return self;
 }
 
@@ -235,7 +219,7 @@ public:
     _cb = new DLInputCallbackImpl(_input, callback);
     _input->SetCallback(_cb);
 
-    // Try with automatic format detection first; fall back to common HD modes.
+    // Try automatic format detection first; fall back to common HD modes.
     HRESULT hr = _input->EnableVideoInput(bmdModeHD1080p30,
                                           bmdFormat8BitBGRA,
                                           bmdVideoInputEnableFormatDetection);
@@ -252,7 +236,11 @@ public:
         }
     }
 
-    if (hr == S_OK) _input->StartStreams();
+    if (hr == S_OK) {
+        _input->StartStreams();
+    } else {
+        NSLog(@"[DLCaptureSession] EnableVideoInput failed: 0x%08X", (unsigned)hr);
+    }
 }
 
 - (void)stop {
