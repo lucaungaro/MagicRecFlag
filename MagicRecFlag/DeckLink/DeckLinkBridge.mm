@@ -188,10 +188,43 @@ public:
 
 - (nullable instancetype)initWithDevice:(DLDevice *)device {
     if (!(self = [super init])) return nil;
-    IDeckLink *dl = device.deckLinkRef;
-    if (!dl) return nil;
-    void *ptr = nullptr;
-    if (dl->QueryInterface(IID_IDeckLinkInput, &ptr) != S_OK) return nil;
+
+    // Re-enumerate to get a guaranteed-fresh IDeckLink reference.
+    // The stored deckLinkRef may have been obtained on a different thread or
+    // across a navigation boundary; a fresh iterator is safer.
+    NSString *targetName = device.name;
+    IDeckLinkIterator *it = createDeckLinkIterator();
+    if (!it) { NSLog(@"[DLCaptureSession] DeckLink runtime not available"); return nil; }
+
+    IDeckLink *foundDL = nullptr;
+    IDeckLink *dl      = nullptr;
+    while (it->Next(&dl) == S_OK) {
+        CFStringRef nameRef = nullptr;
+        if (dl->GetDisplayName(&nameRef) == S_OK && nameRef) {
+            NSString *name = CFBridgingRelease(nameRef);
+            if ([name isEqualToString:targetName]) {
+                foundDL = dl;   // keep the ref from Next()
+                break;
+            }
+        }
+        dl->Release();
+    }
+    it->Release();
+
+    if (!foundDL) {
+        NSLog(@"[DLCaptureSession] Device '%@' not found during re-enumeration", targetName);
+        return nil;
+    }
+
+    void *ptr  = nullptr;
+    HRESULT hr = foundDL->QueryInterface(IID_IDeckLinkInput, &ptr);
+    foundDL->Release();   // we only need IDeckLinkInput from here on
+
+    if (hr != S_OK) {
+        NSLog(@"[DLCaptureSession] QueryInterface(IDeckLinkInput) failed: 0x%08X", (unsigned)hr);
+        return nil;
+    }
+
     _input = (IDeckLinkInput *)ptr;   // QueryInterface already AddRef'd
     return self;
 }
