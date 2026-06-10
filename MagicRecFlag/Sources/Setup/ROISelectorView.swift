@@ -45,10 +45,16 @@ struct ROISelectorView: View {
         }
         .padding(24)
         .onAppear {
+            print("[ROI] selectedDLDevice: \(state.selectedDLDevice?.name ?? "nil")")
+            print("[ROI] selectedAVDevice: \(state.selectedDevice?.localizedName ?? "nil")")
             if let dl = state.selectedDLDevice {
+                print("[ROI] → startDeckLink: \(dl.name)")
                 preview.startDeckLink(device: dl)
             } else if let av = state.selectedDevice {
+                print("[ROI] → startAVFoundation: \(av.localizedName)")
                 preview.startAVFoundation(device: av)
+            } else {
+                print("[ROI] ⚠️ No device selected — nothing to preview")
             }
         }
         .onDisappear { preview.stop() }

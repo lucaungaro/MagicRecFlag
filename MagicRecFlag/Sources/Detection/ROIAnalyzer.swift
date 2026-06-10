@@ -45,14 +45,24 @@ enum ROIAnalyzer {
         var totalCount = 0
 
         let buffer = base.assumingMemoryBound(to: UInt8.self)
+        let isARGB = CVPixelBufferGetPixelFormatType(pixelBuffer) == kCVPixelFormatType_32ARGB
 
         for y in Swift.stride(from: y0, to: y1, by: stride) {
             for x in Swift.stride(from: x0, to: x1, by: stride) {
                 let offset = y * bytesPerRow + x * 4
-                // BGRA layout
-                let b = Double(buffer[offset])     / 255.0
-                let g = Double(buffer[offset + 1]) / 255.0
-                let r = Double(buffer[offset + 2]) / 255.0
+                // BGRA: [B, G, R, A]  /  ARGB: [A, R, G, B]
+                let r: Double
+                let g: Double
+                let b: Double
+                if isARGB {
+                    r = Double(buffer[offset + 1]) / 255.0
+                    g = Double(buffer[offset + 2]) / 255.0
+                    b = Double(buffer[offset + 3]) / 255.0
+                } else {
+                    b = Double(buffer[offset])     / 255.0
+                    g = Double(buffer[offset + 1]) / 255.0
+                    r = Double(buffer[offset + 2]) / 255.0
+                }
 
                 if isRed(r: r, g: g, b: b,
                          redHueWidth: redHueWidth,

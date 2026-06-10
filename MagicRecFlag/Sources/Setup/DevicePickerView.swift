@@ -122,13 +122,17 @@ struct DevicePickerView: View {
     // MARK: – Selection (called from tap gesture — outside view update)
 
     private func selectDevice(_ item: DeviceListItem) {
+        print("[DevicePicker] selectDevice '\(item.name)' isDeckLink=\(item.isDeckLink) id=\(item.id)")
         if item.isDeckLink {
+            let dev = vm.dlDevices[item.id]
+            print("[DevicePicker] DLDevice lookup → \(dev?.name ?? "NIL — key not found")")
             state.selectedDevice   = nil
-            state.selectedDLDevice = vm.dlDevices[item.id]
+            state.selectedDLDevice = dev
         } else {
             state.selectedDLDevice = nil
             state.selectedDevice   = vm.avDevices[item.id]
         }
+        print("[DevicePicker] AppState after: DL=\(state.selectedDLDevice?.name ?? "nil") AV=\(state.selectedDevice?.localizedName ?? "nil")")
     }
 }
 
