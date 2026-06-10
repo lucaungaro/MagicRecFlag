@@ -82,7 +82,7 @@ struct DevicePickerView: View {
     private var emptyDevicesView: some View {
         VStack(spacing: 12) {
             Spacer()
-            Image(systemName: "camera.badge.exclamationmark")
+            Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 40)).foregroundColor(.secondary)
             Text("No Capture Devices Found").font(.headline)
             Text("Connect your device and click Refresh.")
