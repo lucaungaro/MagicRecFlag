@@ -112,7 +112,7 @@ struct SetupContainerView: View {
 
     private var canAdvance: Bool {
         switch currentStep {
-        case .device:    return state.selectedDevice != nil
+        case .device:    return state.hasSelectedDevice
         case .roi:       return true
         case .targetApp: return state.targetAppURL != nil
         case .hotkeys:   return state.recordHotkey.isValid && state.stopHotkey.isValid
