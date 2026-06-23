@@ -140,8 +140,39 @@ public:
     std::atomic<bool>           reconfiguring        { false };
     std::atomic<ULONG>          refCount             { 1 };
 
+    // IOSurface-backed pool we copy frames into (zero-copy wrapping of DeckLink
+    // frame bytes is fragile for packed YUV — CoreImage can deref null on it).
+    // Accessed only from the single DeckLink frame-delivery thread.
+    CVPixelBufferPoolRef        bufferPool { nullptr };
+    long                        poolWidth  { 0 };
+    long                        poolHeight { 0 };
+    OSType                      poolFormat { 0 };
+
     DLInputCallbackImpl(IDeckLinkInput_v14_2_1 *input, DLFrameCallback cb)
         : inputRef(input), frameCallback(cb) {}
+
+    ~DLInputCallbackImpl() {
+        if (bufferPool) CVPixelBufferPoolRelease(bufferPool);
+    }
+
+    // Lazily (re)create the pool when the frame geometry/format changes.
+    bool ensurePool(long w, long h, OSType fmt) {
+        if (bufferPool && poolWidth == w && poolHeight == h && poolFormat == fmt)
+            return true;
+        if (bufferPool) { CVPixelBufferPoolRelease(bufferPool); bufferPool = nullptr; }
+
+        NSDictionary *attrs = @{
+            (id)kCVPixelBufferPixelFormatTypeKey     : @(fmt),
+            (id)kCVPixelBufferWidthKey               : @(w),
+            (id)kCVPixelBufferHeightKey              : @(h),
+            (id)kCVPixelBufferIOSurfacePropertiesKey : @{},
+        };
+        CVReturn r = CVPixelBufferPoolCreate(kCFAllocatorDefault, nullptr,
+                                             (__bridge CFDictionaryRef)attrs, &bufferPool);
+        if (r != kCVReturnSuccess) { bufferPool = nullptr; return false; }
+        poolWidth = w; poolHeight = h; poolFormat = fmt;
+        return true;
+    }
 
     // Reconfigure the input to (mode, fmt) on a background thread. StopStreams must
     // NOT be called from within a DeckLink callback (deadlock), so we dispatch.
@@ -232,21 +263,32 @@ public:
                   g, width, height, rowBytes, (unsigned)pixelFormat.load());
 
         OSType cvFormat = cvFormatFor(pixelFormat.load());
+        if (!ensurePool(width, height, cvFormat)) {
+            if (g < 5) NSLog(@"[DLCapture] pool creation failed for fmt 0x%08X", (unsigned)cvFormat);
+            return S_OK;
+        }
 
         CVPixelBufferRef pb = nullptr;
-        CVReturn status = CVPixelBufferCreateWithBytes(
-            kCFAllocatorDefault,
-            (size_t)width, (size_t)height,
-            cvFormat,
-            bytes, (size_t)rowBytes,
-            nullptr, nullptr, nullptr, &pb);
-
-        if (status == kCVReturnSuccess && pb) {
-            frameCallback(pb);
-            CVPixelBufferRelease(pb);
-        } else if (g < 5) {
-            NSLog(@"[DLCapture] CVPixelBufferCreateWithBytes failed: %d", (int)status);
+        if (CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, bufferPool, &pb) != kCVReturnSuccess
+            || !pb) {
+            if (g < 5) NSLog(@"[DLCapture] pool buffer alloc failed");
+            return S_OK;
         }
+
+        // Copy DeckLink frame bytes into the pool buffer row by row (source and
+        // destination strides may differ). All our candidate formats are single-plane.
+        CVPixelBufferLockBaseAddress(pb, 0);
+        if (uint8_t *dst = (uint8_t *)CVPixelBufferGetBaseAddress(pb)) {
+            size_t        dstStride = CVPixelBufferGetBytesPerRow(pb);
+            size_t        copyBytes = (size_t)rowBytes < dstStride ? (size_t)rowBytes : dstStride;
+            const uint8_t *src      = (const uint8_t *)bytes;
+            for (long row = 0; row < height; row++)
+                memcpy(dst + row * dstStride, src + row * (size_t)rowBytes, copyBytes);
+        }
+        CVPixelBufferUnlockBaseAddress(pb, 0);
+
+        frameCallback(pb);
+        CVPixelBufferRelease(pb);
         return S_OK;
     }
 
