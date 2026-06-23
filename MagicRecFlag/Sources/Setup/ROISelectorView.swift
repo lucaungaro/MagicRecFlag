@@ -232,10 +232,14 @@ final class PreviewNSView: NSView {
 
 // MARK: – Unified preview session (AVFoundation + DeckLink)
 
-final class PreviewCaptureSession: ObservableObject {
+final class PreviewCaptureSession: NSObject, ObservableObject,
+                                   AVCaptureVideoDataOutputSampleBufferDelegate {
     // AVFoundation
     let avSession = AVCaptureSession()
     private var avInput: AVCaptureDeviceInput?
+    private let avOutput = AVCaptureVideoDataOutput()
+    private let avQueue  = DispatchQueue(label: "preview.av.frames")
+    private var avFrameCount = 0
 
     // DeckLink
     private var dlCaptureSession: DLCaptureSession?
@@ -245,19 +249,48 @@ final class PreviewCaptureSession: ObservableObject {
     @Published var isDeckLink:      Bool     = false
     @Published var dlPreviewImage:  NSImage? = nil
 
+    override init() { super.init() }
+
     // MARK: AVFoundation start
 
     func startAVFoundation(device: AVCaptureDevice) {
         isDeckLink = false
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        print("[Preview/AV] auth status: \(status.rawValue) (0=notDetermined 1=restricted 2=denied 3=authorized)")
+
+        avFrameCount = 0
         avSession.beginConfiguration()
         if let old = avInput { avSession.removeInput(old) }
         do {
             let input = try AVCaptureDeviceInput(device: device)
-            if avSession.canAddInput(input) { avSession.addInput(input); avInput = input }
-        } catch { print("[Preview] AVFoundation error: \(error)") }
+            if avSession.canAddInput(input) {
+                avSession.addInput(input); avInput = input
+                print("[Preview/AV] input added: \(device.localizedName)")
+            } else {
+                print("[Preview/AV] ⚠️ canAddInput == false for \(device.localizedName)")
+            }
+        } catch { print("[Preview/AV] AVCaptureDeviceInput error: \(error)") }
+
+        // Attach a data output so we can definitively confirm frames are flowing
+        // (independent of the preview layer).
+        if avOutput.sampleBufferDelegate == nil, avSession.canAddOutput(avOutput) {
+            avOutput.setSampleBufferDelegate(self, queue: avQueue)
+            avSession.addOutput(avOutput)
+        }
         avSession.commitConfiguration()
+
         let s = avSession
-        Task.detached { s.startRunning() }
+        Task.detached {
+            s.startRunning()
+            print("[Preview/AV] startRunning called — isRunning=\(s.isRunning)")
+        }
+    }
+
+    func captureOutput(_ output: AVCaptureOutput,
+                       didOutput sampleBuffer: CMSampleBuffer,
+                       from connection: AVCaptureConnection) {
+        avFrameCount += 1
+        if avFrameCount <= 3 { print("[Preview/AV] frame \(avFrameCount) arrived ✓") }
     }
 
     // MARK: DeckLink start
