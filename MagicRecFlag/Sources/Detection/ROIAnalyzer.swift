@@ -45,23 +45,42 @@ enum ROIAnalyzer {
         var totalCount = 0
 
         let buffer = base.assumingMemoryBound(to: UInt8.self)
-        let isARGB = CVPixelBufferGetPixelFormatType(pixelBuffer) == kCVPixelFormatType_32ARGB
+        let format = CVPixelBufferGetPixelFormatType(pixelBuffer)
+        let isARGB = format == kCVPixelFormatType_32ARGB
+        // '2vuy' — packed 4:2:2 YUV from DeckLink capture-only devices
+        let isYUV  = format == kCVPixelFormatType_422YpCbCr8
 
         for y in Swift.stride(from: y0, to: y1, by: stride) {
             for x in Swift.stride(from: x0, to: x1, by: stride) {
-                let offset = y * bytesPerRow + x * 4
-                // BGRA: [B, G, R, A]  /  ARGB: [A, R, G, B]
                 let r: Double
                 let g: Double
                 let b: Double
-                if isARGB {
-                    r = Double(buffer[offset + 1]) / 255.0
-                    g = Double(buffer[offset + 2]) / 255.0
-                    b = Double(buffer[offset + 3]) / 255.0
+                if isYUV {
+                    // 2vuy layout: each 4-byte group = [Cb, Y0, Cr, Y1] for two pixels.
+                    let groupBase = y * bytesPerRow + (x >> 1) * 4
+                    let cb = Double(buffer[groupBase + 0])
+                    let yv = (x & 1) == 0 ? Double(buffer[groupBase + 1])
+                                          : Double(buffer[groupBase + 3])
+                    let cr = Double(buffer[groupBase + 2])
+                    // BT.709 limited-range YCbCr → RGB
+                    let c = (yv - 16.0) * 1.164383
+                    let d = cb - 128.0
+                    let e = cr - 128.0
+                    r = min(1, max(0, (c + 1.792741 * e) / 255.0))
+                    g = min(1, max(0, (c - 0.213249 * d - 0.532909 * e) / 255.0))
+                    b = min(1, max(0, (c + 2.112402 * d) / 255.0))
                 } else {
-                    b = Double(buffer[offset])     / 255.0
-                    g = Double(buffer[offset + 1]) / 255.0
-                    r = Double(buffer[offset + 2]) / 255.0
+                    let offset = y * bytesPerRow + x * 4
+                    // BGRA: [B, G, R, A]  /  ARGB: [A, R, G, B]
+                    if isARGB {
+                        r = Double(buffer[offset + 1]) / 255.0
+                        g = Double(buffer[offset + 2]) / 255.0
+                        b = Double(buffer[offset + 3]) / 255.0
+                    } else {
+                        b = Double(buffer[offset])     / 255.0
+                        g = Double(buffer[offset + 1]) / 255.0
+                        r = Double(buffer[offset + 2]) / 255.0
+                    }
                 }
 
                 if isRed(r: r, g: g, b: b,

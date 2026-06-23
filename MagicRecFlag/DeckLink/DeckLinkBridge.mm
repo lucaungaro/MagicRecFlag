@@ -104,17 +104,73 @@ static IDeckLinkIterator* createDeckLinkIterator(void) {
 // Input callback — uses v14_2_1 interfaces to match the installed driver
 // ============================================================================
 
+// Candidate capture formats, tried in order. YUV first because capture-only
+// devices (e.g. UltraStudio Recorder 3G) deliver the wire format natively and
+// cannot do on-card conversion to RGB — asking for BGRA there yields frames
+// permanently flagged bmdFrameHasNoInputSource. BGRA/ARGB remain as fallbacks
+// for devices that DO support on-card conversion.
+static const BMDPixelFormat kCandidateFormats[] = {
+    bmdFormat8BitYUV,    // '2vuy' — kCVPixelFormatType_422YpCbCr8  (native, universal)
+    bmdFormat10BitYUV,   // 'v210' — kCVPixelFormatType_422YpCbCr10 (native 10-bit)
+    bmdFormat8BitBGRA,   // 'BGRA' — needs on-card conversion
+    bmdFormat8BitARGB    // 'ARGB' — needs on-card conversion
+};
+static const int kCandidateFormatCount =
+    (int)(sizeof(kCandidateFormats) / sizeof(kCandidateFormats[0]));
+
+static OSType cvFormatFor(BMDPixelFormat f) {
+    switch (f) {
+        case bmdFormat8BitYUV:  return kCVPixelFormatType_422YpCbCr8;
+        case bmdFormat10BitYUV: return kCVPixelFormatType_422YpCbCr10;
+        case bmdFormat8BitARGB: return kCVPixelFormatType_32ARGB;
+        case bmdFormat8BitBGRA:
+        default:                return kCVPixelFormatType_32BGRA;
+    }
+}
+
 class DLInputCallbackImpl : public IDeckLinkInputCallback_v14_2_1 {
 public:
-    IDeckLinkInput_v14_2_1 *inputRef;   // non-owning; DLCaptureSession holds the ref
-    DLFrameCallback          frameCallback;
-    BMDPixelFormat           pixelFormat     { bmdFormat8BitBGRA };
-    BMDDisplayMode           configuredMode  { (BMDDisplayMode)0 };  // 0 = "not yet set"
-    int                      frameLogCounter { 0 };
-    std::atomic<ULONG>       refCount        { 1 };
+    IDeckLinkInput_v14_2_1     *inputRef;   // non-owning; DLCaptureSession holds the ref
+    DLFrameCallback             frameCallback;
+    std::atomic<BMDPixelFormat> pixelFormat         { bmdFormat8BitYUV };
+    BMDDisplayMode              configuredMode       { (BMDDisplayMode)0 };  // 0 = "not yet set"
+    std::atomic<int>            formatIndex          { 0 };   // index into kCandidateFormats
+    std::atomic<int>            consecutiveNoSource  { 0 };
+    std::atomic<int>            goodFrameCount       { 0 };
+    std::atomic<bool>           reconfiguring        { false };
+    std::atomic<ULONG>          refCount             { 1 };
 
     DLInputCallbackImpl(IDeckLinkInput_v14_2_1 *input, DLFrameCallback cb)
         : inputRef(input), frameCallback(cb) {}
+
+    // Reconfigure the input to (mode, fmt) on a background thread. StopStreams must
+    // NOT be called from within a DeckLink callback (deadlock), so we dispatch.
+    // AddRef keeps this object alive until the block completes.
+    void scheduleReconfigure(BMDDisplayMode mode, BMDPixelFormat fmt) {
+        if (reconfiguring.exchange(true)) return;   // one reconfiguration at a time
+        IDeckLinkInput_v14_2_1 *input = inputRef;
+        AddRef();
+        dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+            HRESULT hr = input->StopStreams();
+            NSLog(@"[DLCapture BG] StopStreams:            0x%08X", (unsigned)hr);
+
+            // No format-detection flag here: we already know the mode, and omitting it
+            // stops VideoInputFormatChanged from re-firing after StartStreams.
+            hr = input->EnableVideoInput(mode, fmt, bmdVideoInputFlagDefault);
+            NSLog(@"[DLCapture BG] EnableVideoInput 0x%08X: 0x%08X", (unsigned)fmt, (unsigned)hr);
+
+            if (hr == S_OK) {
+                this->pixelFormat = fmt;
+                hr = input->StartStreams();
+                NSLog(@"[DLCapture BG] StartStreams:           0x%08X", (unsigned)hr);
+            } else {
+                NSLog(@"[DLCapture BG] EnableVideoInput failed — streams not restarted");
+            }
+            this->consecutiveNoSource = 0;
+            this->reconfiguring = false;
+            this->Release();
+        });
+    }
 
     // Called when format-detection identifies the incoming signal format.
     HRESULT VideoInputFormatChanged(BMDVideoInputFormatChangedEvents notificationEvents,
@@ -124,38 +180,17 @@ public:
 
         // Only act when the display mode itself changed — ignore field-dominance or
         // colorspace-only changes, and skip if we are already configured for this mode.
-        // Without these guards the callback fires in an infinite loop.
         if (!(notificationEvents & bmdVideoInputDisplayModeChanged)) return S_OK;
 
         BMDDisplayMode mode = newMode->GetDisplayMode();
         if (mode == configuredMode) return S_OK;
-
         configuredMode = mode;
-        NSLog(@"[DLCapture] Reconfiguring → mode 0x%08X, detectedFlags 0x%08X",
-              (unsigned)mode, (unsigned)detectedFlags);
+        formatIndex    = 0;   // restart format search for the new mode
 
-        // Blackmagic SDK: do NOT call StopStreams() inside this callback — may deadlock.
-        // Correct pattern: PauseStreams → EnableVideoInput → FlushStreams → StartStreams.
-        inputRef->PauseStreams();
+        NSLog(@"[DLCapture] Format detected → mode 0x%08X, flags 0x%08X — reconfiguring to 0x%08X",
+              (unsigned)mode, (unsigned)detectedFlags, (unsigned)kCandidateFormats[0]);
 
-        // Try BGRA first; fall back to ARGB if the device rejects BGRA for this mode.
-        HRESULT hr = inputRef->EnableVideoInput(mode, bmdFormat8BitBGRA,
-                                                bmdVideoInputEnableFormatDetection);
-        if (hr != S_OK) {
-            NSLog(@"[DLCapture] BGRA rejected (0x%08X), falling back to ARGB", (unsigned)hr);
-            pixelFormat = bmdFormat8BitARGB;
-            hr = inputRef->EnableVideoInput(mode, bmdFormat8BitARGB,
-                                            bmdVideoInputEnableFormatDetection);
-        } else {
-            pixelFormat = bmdFormat8BitBGRA;
-        }
-
-        if (hr == S_OK) {
-            inputRef->FlushStreams();
-            inputRef->StartStreams();
-        } else {
-            NSLog(@"[DLCapture] EnableVideoInput in FormatChanged failed: 0x%08X", (unsigned)hr);
-        }
+        scheduleReconfigure(mode, kCandidateFormats[0]);
         return S_OK;
     }
 
@@ -166,10 +201,24 @@ public:
         if (!videoFrame || !frameCallback) return S_OK;
 
         if (videoFrame->GetFlags() & bmdFrameHasNoInputSource) {
-            if ((frameLogCounter++ % 300) == 0)
-                NSLog(@"[DLCapture] bmdFrameHasNoInputSource — no signal detected yet");
+            int n = ++consecutiveNoSource;
+            if (n == 1 || (n % 120) == 0)
+                NSLog(@"[DLCapture] no input source (consecutive %d, fmt 0x%08X)",
+                      n, (unsigned)pixelFormat.load());
+
+            // Adaptive fallback: if the source never locks with the current pixel
+            // format, cycle to the next candidate. ~90 frames ≈ 3 s at 25–30 fps.
+            if (n == 90 && configuredMode != 0 && !reconfiguring.load()) {
+                int idx = (formatIndex.load() + 1) % kCandidateFormatCount;
+                formatIndex = idx;
+                NSLog(@"[DLCapture] source not locking — trying next pixel format 0x%08X",
+                      (unsigned)kCandidateFormats[idx]);
+                scheduleReconfigure(configuredMode, kCandidateFormats[idx]);
+            }
             return S_OK;
         }
+
+        consecutiveNoSource = 0;
 
         long   width    = videoFrame->GetWidth();
         long   height   = videoFrame->GetHeight();
@@ -177,14 +226,12 @@ public:
         void  *bytes    = nullptr;
         if (videoFrame->GetBytes(&bytes) != S_OK || !bytes) return S_OK;
 
-        if (frameLogCounter++ < 3)
-            NSLog(@"[DLCapture] Frame arrived: %ld×%ld rowBytes=%ld fmt=0x%08X",
-                  width, height, rowBytes, (unsigned)pixelFormat);
+        int g = goodFrameCount.fetch_add(1);
+        if (g < 5)
+            NSLog(@"[DLCapture] GOOD frame %d: %ld×%ld rowBytes=%ld fmt=0x%08X",
+                  g, width, height, rowBytes, (unsigned)pixelFormat.load());
 
-        // Determine the Core Video pixel format to use.
-        OSType cvFormat = (pixelFormat == bmdFormat8BitARGB)
-            ? kCVPixelFormatType_32ARGB
-            : kCVPixelFormatType_32BGRA;
+        OSType cvFormat = cvFormatFor(pixelFormat.load());
 
         CVPixelBufferRef pb = nullptr;
         CVReturn status = CVPixelBufferCreateWithBytes(
@@ -197,6 +244,8 @@ public:
         if (status == kCVReturnSuccess && pb) {
             frameCallback(pb);
             CVPixelBufferRelease(pb);
+        } else if (g < 5) {
+            NSLog(@"[DLCapture] CVPixelBufferCreateWithBytes failed: %d", (int)status);
         }
         return S_OK;
     }
@@ -265,9 +314,12 @@ public:
     _cb = new DLInputCallbackImpl(_input, callback);
     _input->SetCallback(_cb);
 
-    // Try automatic format detection first; fall back to common HD modes.
+    // Enable with format detection so VideoInputFormatChanged fires and tells us the
+    // real signal mode; capture in native 8-bit YUV (works on capture-only devices
+    // that can't convert to RGB on-card). The detection callback then reconfigures
+    // to the detected mode and best pixel format.
     HRESULT hr = _input->EnableVideoInput(bmdModeHD1080p30,
-                                          bmdFormat8BitBGRA,
+                                          bmdFormat8BitYUV,
                                           bmdVideoInputEnableFormatDetection);
     if (hr != S_OK) {
         const BMDDisplayMode modes[] = {
@@ -277,7 +329,7 @@ public:
             bmdModeNTSC,        bmdModePAL
         };
         for (auto &m : modes) {
-            hr = _input->EnableVideoInput(m, bmdFormat8BitBGRA, bmdVideoInputFlagDefault);
+            hr = _input->EnableVideoInput(m, bmdFormat8BitYUV, bmdVideoInputFlagDefault);
             if (hr == S_OK) break;
         }
     }
