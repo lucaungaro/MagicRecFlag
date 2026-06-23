@@ -152,7 +152,26 @@ final class DevicePickerViewModel: ObservableObject {
         avDevices = [:]
         dlDevices = [:]
 
-        // AVFoundation devices
+        // DeckLink devices first — these are the preferred (native) capture path.
+        var dlNames: [String] = []
+        if DLDeviceEnumerator.isAvailable() {
+            let dlList = DLDeviceEnumerator.availableDevices()
+            print("[DevicePicker] DeckLink devices: \(dlList.count) → \(dlList.map { $0.name })")
+            for dev in dlList {
+                dlDevices[dev.deviceID] = dev
+                dlNames.append(dev.name)
+                result.append(DeviceListItem(id: dev.deviceID, name: dev.name,
+                                             subtitle: "Blackmagic DeckLink — native capture",
+                                             isDeckLink: true))
+            }
+        } else {
+            print("[DevicePicker] DeckLink runtime not available")
+        }
+
+        // AVFoundation devices — but skip any that duplicate a DeckLink device we
+        // already listed (the CoreMediaIO/DAL plugin exposes a "Blackmagic <model>"
+        // mirror of each DeckLink card). This guarantees a DeckLink device is only
+        // ever offered via the native DeckLink API, never via AVFoundation.
         let deviceTypes: [AVCaptureDevice.DeviceType]
         if #available(macOS 14.0, *) {
             deviceTypes = [.external, .builtInWideAngleCamera, .continuityCamera]
@@ -162,21 +181,30 @@ final class DevicePickerViewModel: ObservableObject {
         let avSession = AVCaptureDevice.DiscoverySession(
             deviceTypes: deviceTypes, mediaType: .video, position: .unspecified)
         for dev in avSession.devices {
+            if Self.matchesDeckLink(avName: dev.localizedName, deckLinkNames: dlNames) {
+                print("[DevicePicker] hiding AVFoundation duplicate of DeckLink device: \(dev.localizedName)")
+                continue
+            }
             avDevices[dev.uniqueID] = dev
             result.append(DeviceListItem(id: dev.uniqueID, name: dev.localizedName,
                                          subtitle: dev.uniqueID, isDeckLink: false))
         }
 
-        // DeckLink devices
-        if DLDeviceEnumerator.isAvailable() {
-            for dev in DLDeviceEnumerator.availableDevices() {
-                dlDevices[dev.deviceID] = dev
-                result.append(DeviceListItem(id: dev.deviceID, name: dev.name,
-                                             subtitle: "Blackmagic DeckLink — native capture",
-                                             isDeckLink: true))
-            }
-        }
-
         items = result
+    }
+
+    /// True when an AVFoundation device name refers to the same hardware as one of
+    /// the DeckLink devices (the DAL plugin exposes "Blackmagic <model>" mirrors).
+    private static func matchesDeckLink(avName: String, deckLinkNames: [String]) -> Bool {
+        let av = avName.lowercased()
+            .replacingOccurrences(of: "blackmagic", with: "")
+            .trimmingCharacters(in: .whitespaces)
+        return deckLinkNames.contains { dlRaw in
+            let dl = dlRaw.lowercased()
+                .replacingOccurrences(of: "blackmagic", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            guard !dl.isEmpty else { return false }
+            return av == dl || av.contains(dl)
+        }
     }
 }
