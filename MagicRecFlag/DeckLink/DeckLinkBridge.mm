@@ -35,12 +35,33 @@ static CFBundleRef getDeckLinkBundle(void) {
     return sBundle;
 }
 
+// The DeckLinkAPI.bundle does NOT export the plain "CreateDeckLinkIteratorInstance"
+// entry point — that name is synthesised by Blackmagic's DeckLinkAPIDispatch.cpp.
+// The bundle instead exports versioned symbols ("..._0004", "..._0003", ...). Look
+// them up highest-version-first, which is what the official dispatch does.
+static void* lookupBundleFunction(CFBundleRef bundle, const char *const *names, int count) {
+    for (int i = 0; i < count; i++) {
+        CFStringRef s = CFStringCreateWithCString(kCFAllocatorDefault, names[i],
+                                                  kCFStringEncodingUTF8);
+        void *fn = (void *)CFBundleGetFunctionPointerForName(bundle, s);
+        CFRelease(s);
+        if (fn) return fn;
+    }
+    return nullptr;
+}
+
 static IDeckLinkIterator* createDeckLinkIterator(void) {
     CFBundleRef bundle = getDeckLinkBundle();
     if (!bundle) return nullptr;
     typedef IDeckLinkIterator* (*Fn)(void);
-    Fn fn = (Fn)CFBundleGetFunctionPointerForName(
-        bundle, CFSTR("CreateDeckLinkIteratorInstance"));
+    static const char *const names[] = {
+        "CreateDeckLinkIteratorInstance_0004",
+        "CreateDeckLinkIteratorInstance_0003",
+        "CreateDeckLinkIteratorInstance_0002",
+        "CreateDeckLinkIteratorInstance",   // unversioned fallback
+    };
+    Fn fn = (Fn)lookupBundleFunction(bundle, names, 4);
+    if (!fn) NSLog(@"[DeckLink] CreateDeckLinkIteratorInstance symbol not found in bundle");
     return fn ? fn() : nullptr;
 }
 
@@ -51,8 +72,11 @@ static void logDriverInfoOnce(void) {
         CFBundleRef bundle = getDeckLinkBundle();
         if (!bundle) { NSLog(@"[DeckLink] DeckLinkAPI.bundle NOT loaded"); return; }
         typedef IDeckLinkAPIInformation* (*Fn)(void);
-        Fn fn = (Fn)CFBundleGetFunctionPointerForName(
-            bundle, CFSTR("CreateDeckLinkAPIInformationInstance"));
+        static const char *const names[] = {
+            "CreateDeckLinkAPIInformationInstance_0001",
+            "CreateDeckLinkAPIInformationInstance",   // unversioned fallback
+        };
+        Fn fn = (Fn)lookupBundleFunction(bundle, names, 2);
         IDeckLinkAPIInformation *info = fn ? fn() : nullptr;
         if (!info) { NSLog(@"[DeckLink] bundle loaded but API information unavailable"); return; }
         int64_t ver = 0;
