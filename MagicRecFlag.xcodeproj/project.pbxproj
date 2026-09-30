@@ -21,6 +21,7 @@
 		A012 /* ActionDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = F012 /* ActionDispatcher.swift */; };
 		A013 /* HUDWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F013 /* HUDWindowController.swift */; };
 		A014 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F014 /* Info.plist */; };
+		A016 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F018 /* Assets.xcassets */; };
 		A015 /* DeckLinkBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F016 /* DeckLinkBridge.mm */; };
 
 		/* Frameworks */
@@ -45,6 +46,7 @@
 		F012 /* ActionDispatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionDispatcher.swift; sourceTree = "<group>"; };
 		F013 /* HUDWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HUDWindowController.swift; sourceTree = "<group>"; };
 		F014 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		F018 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F015 /* DeckLinkBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DeckLinkBridge.h; sourceTree = "<group>"; };
 		F016 /* DeckLinkBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DeckLinkBridge.mm; sourceTree = "<group>"; };
 		F017 /* MagicRecFlag-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MagicRecFlag-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 			isa = PBXGroup;
 			children = (
 				F014 /* Info.plist */,
+				F018 /* Assets.xcassets */,
 			);
 			path = MagicRecFlag/Resources;
 			sourceTree = "<group>";
@@ -246,6 +249,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A016 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
