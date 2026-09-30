@@ -4,7 +4,7 @@
 
 <h1 align="center">Magic Rec Flag</h1>
 
-**Magic Rec Flag** watches a corner of a video feed for a red *recording* tally light and, the moment it lights up, presses your **Record** shortcut in another application for you — then presses **Stop** when the light goes out. It was built to keep a recorder such as **QTake** in sync with a camera's tally signal, hands‑free.
+**Magic Rec Flag** watches the selected area of a video feed for a red *recording* tally icon and presses a **Record** shortcut in another application — then presses **Stop** when the tally goes out. It was built to keep a software recorder such as **QTake** or **Livegrade** in sync with a camera's recording state even **without proper SDI rec flag**.
 
 ## How it works
 
