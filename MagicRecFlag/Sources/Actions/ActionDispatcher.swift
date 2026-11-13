@@ -9,24 +9,29 @@ final class ActionDispatcher {
     // MARK: – Public triggers
 
     func triggerRecord() {
-        NSLog("[ActionDispatcher] REC detected — sending Record shortcut %@",
-              AppState.shared.recordHotkey.displayString)
+        NSLog("[ActionDispatcher] REC detected — sending Record shortcuts %@",
+              AppState.shared.recordHotkeys.sequenceDisplay)
         AppState.shared.isRecording = true
         HUDWindowController.shared.setState(.recording)
-        performAction(hotkey: AppState.shared.recordHotkey)
+        performAction(hotkeys: AppState.shared.recordHotkeys)
     }
 
     func triggerStop() {
-        NSLog("[ActionDispatcher] STBY detected — sending Stop shortcut %@",
-              AppState.shared.stopHotkey.displayString)
+        NSLog("[ActionDispatcher] STBY detected — sending Stop shortcuts %@",
+              AppState.shared.stopHotkeys.sequenceDisplay)
         AppState.shared.isRecording = false
         HUDWindowController.shared.setState(.standby)
-        performAction(hotkey: AppState.shared.stopHotkey)
+        performAction(hotkeys: AppState.shared.stopHotkeys)
     }
 
     // MARK: – Core action
 
-    private func performAction(hotkey: HotkeyDefinition) {
+    /// Pause between two shortcuts of a sequence, so the target app has handled
+    /// the first one before the next arrives.
+    private let sequenceInterval: TimeInterval = 0.25
+
+    private func performAction(hotkeys: [HotkeyDefinition]) {
+        let hotkeys = hotkeys.filter(\.isValid)
         guard let url = AppState.shared.targetAppURL else { return }
 
         // 1. Launch or foreground the target application
@@ -40,9 +45,13 @@ final class ActionDispatcher {
                 HUDWindowController.shared.reportShortcutFailure("Could not open \(url.lastPathComponent)")
                 return
             }
-            // 2. Short delay to let the app settle, then send the key to it
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                self?.sendKeyEvent(hotkey: hotkey, to: app)
+            // 2. Short delay to let the app settle, then send the keys to it in order
+            guard let self else { return }
+            for (i, hotkey) in hotkeys.enumerated() {
+                let delay = 0.15 + Double(i) * self.sequenceInterval
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    self.sendKeyEvent(hotkey: hotkey, to: app)
+                }
             }
         }
     }

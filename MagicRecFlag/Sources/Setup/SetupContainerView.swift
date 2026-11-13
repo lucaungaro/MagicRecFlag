@@ -115,7 +115,7 @@ struct SetupContainerView: View {
         case .device:    return state.hasSelectedDevice
         case .roi:       return true
         case .targetApp: return state.targetAppURL != nil
-        case .hotkeys:   return state.recordHotkey.isValid && state.stopHotkey.isValid
+        case .hotkeys:   return state.hasValidShortcuts
         case .confirm:   return false
         }
     }

@@ -32,8 +32,9 @@ final class AppState: ObservableObject {
     @Published var roiRect: CGRect = CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4)
     @Published var targetAppURL: URL? = nil
     @Published var targetAppName: String = "None selected"
-    @Published var recordHotkey: HotkeyDefinition = HotkeyDefinition()
-    @Published var stopHotkey: HotkeyDefinition = HotkeyDefinition()
+    /// Shortcuts sent in order when REC / STBY is detected (at least one slot).
+    @Published var recordHotkeys: [HotkeyDefinition] = [HotkeyDefinition()]
+    @Published var stopHotkeys:   [HotkeyDefinition] = [HotkeyDefinition()]
 
     // MARK: – Live mode state
 
@@ -55,8 +56,11 @@ final class AppState: ObservableObject {
     var isFullyConfigured: Bool {
         hasSelectedDevice &&
         targetAppURL != nil &&
-        recordHotkey.isValid &&
-        stopHotkey.isValid
+        hasValidShortcuts
+    }
+
+    var hasValidShortcuts: Bool {
+        recordHotkeys.contains { $0.isValid } && stopHotkeys.contains { $0.isValid }
     }
 
     // MARK: – Persistence
@@ -89,12 +93,8 @@ final class AppState: ObservableObject {
         d.set(roiRect.height, forKey: "roiHeight")
 
         // Hotkeys
-        d.set(Int(recordHotkey.keyCode),            forKey: "recordKeyCode")
-        d.set(Int(recordHotkey.modifiers.rawValue),  forKey: "recordModifiers")
-        d.set(recordHotkey.displayString,            forKey: "recordDisplayString")
-        d.set(Int(stopHotkey.keyCode),               forKey: "stopKeyCode")
-        d.set(Int(stopHotkey.modifiers.rawValue),    forKey: "stopModifiers")
-        d.set(stopHotkey.displayString,              forKey: "stopDisplayString")
+        d.set(recordHotkeys.filter(\.isValid).map(\.dictionary), forKey: "recordHotkeys")
+        d.set(stopHotkeys.filter(\.isValid).map(\.dictionary),   forKey: "stopHotkeys")
 
         // Detection tuning
         d.set(redThreshold,   forKey: "redThreshold")
@@ -157,18 +157,8 @@ final class AppState: ObservableObject {
         }
 
         // Hotkeys
-        if d.object(forKey: "recordKeyCode") != nil {
-            recordHotkey = HotkeyDefinition(
-                keyCode:       UInt16(d.integer(forKey: "recordKeyCode")),
-                modifiers:     NSEvent.ModifierFlags(rawValue: UInt(d.integer(forKey: "recordModifiers"))),
-                displayString: d.string(forKey: "recordDisplayString") ?? "")
-        }
-        if d.object(forKey: "stopKeyCode") != nil {
-            stopHotkey = HotkeyDefinition(
-                keyCode:       UInt16(d.integer(forKey: "stopKeyCode")),
-                modifiers:     NSEvent.ModifierFlags(rawValue: UInt(d.integer(forKey: "stopModifiers"))),
-                displayString: d.string(forKey: "stopDisplayString") ?? "")
-        }
+        recordHotkeys = Self.loadHotkeys(d, listKey: "recordHotkeys", legacyPrefix: "record")
+        stopHotkeys   = Self.loadHotkeys(d, listKey: "stopHotkeys",   legacyPrefix: "stop")
 
         // Detection tuning
         if d.object(forKey: "redThreshold")  != nil { redThreshold  = d.double(forKey: "redThreshold") }
@@ -181,6 +171,25 @@ final class AppState: ObservableObject {
     }
 }
 
+extension AppState {
+    /// Reads a shortcut list, falling back to the single shortcut saved by
+    /// earlier versions ("recordKeyCode", "recordModifiers", …).
+    fileprivate static func loadHotkeys(_ d: UserDefaults, listKey: String,
+                                        legacyPrefix: String) -> [HotkeyDefinition] {
+        if let list = d.array(forKey: listKey) as? [[String: Any]] {
+            let hotkeys = list.compactMap(HotkeyDefinition.init(dictionary:))
+            if !hotkeys.isEmpty { return hotkeys }
+        }
+        if d.object(forKey: legacyPrefix + "KeyCode") != nil {
+            return [HotkeyDefinition(
+                keyCode:       UInt16(d.integer(forKey: legacyPrefix + "KeyCode")),
+                modifiers:     NSEvent.ModifierFlags(rawValue: UInt(d.integer(forKey: legacyPrefix + "Modifiers"))),
+                displayString: d.string(forKey: legacyPrefix + "DisplayString") ?? "")]
+        }
+        return [HotkeyDefinition()]
+    }
+}
+
 // MARK: – HotkeyDefinition
 
 struct HotkeyDefinition: Equatable {
@@ -188,4 +197,25 @@ struct HotkeyDefinition: Equatable {
     var modifiers: NSEvent.ModifierFlags = []
     var displayString: String = ""
     var isValid: Bool { !displayString.isEmpty }
+}
+
+extension HotkeyDefinition {
+    var dictionary: [String: Any] {
+        ["keyCode": Int(keyCode), "modifiers": Int(modifiers.rawValue), "display": displayString]
+    }
+
+    init?(dictionary d: [String: Any]) {
+        guard let code = d["keyCode"] as? Int, let display = d["display"] as? String,
+              !display.isEmpty else { return nil }
+        self.init(keyCode: UInt16(code),
+                  modifiers: NSEvent.ModifierFlags(rawValue: UInt(d["modifiers"] as? Int ?? 0)),
+                  displayString: display)
+    }
+}
+
+extension Array where Element == HotkeyDefinition {
+    /// "⌥R → ⌘S", for summaries and logs.
+    var sequenceDisplay: String {
+        filter(\.isValid).map(\.displayString).joined(separator: " → ")
+    }
 }

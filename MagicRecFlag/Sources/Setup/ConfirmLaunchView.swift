@@ -30,8 +30,8 @@ struct ConfirmLaunchView: View {
                            state.roiRect.minX * 100, state.roiRect.minY * 100,
                            state.roiRect.width * 100, state.roiRect.height * 100))
                 summaryRow("Target App", state.targetAppName)
-                summaryRow("Record shortcut", state.recordHotkey.displayString)
-                summaryRow("Stop shortcut", state.stopHotkey.displayString)
+                summaryRow("Record shortcuts", state.recordHotkeys.sequenceDisplay)
+                summaryRow("Stop shortcuts", state.stopHotkeys.sequenceDisplay)
                 summaryRow("Red threshold", "\(Int(state.redThreshold * 100))% of ROI pixels")
             }
             .padding(16)
