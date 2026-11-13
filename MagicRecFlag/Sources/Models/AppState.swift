@@ -15,10 +15,16 @@ final class AppState: ObservableObject {
     /// Set when the user picks a native DeckLink device.
     @Published var selectedDLDevice: DLDevice? = nil
 
-    var hasSelectedDevice: Bool { selectedDevice != nil || selectedDLDevice != nil }
+    /// Set when the user picks an NDI source received natively over the network.
+    @Published var selectedNDISource: NDISource? = nil
+
+    var hasSelectedDevice: Bool {
+        selectedDevice != nil || selectedDLDevice != nil || selectedNDISource != nil
+    }
 
     var selectedDeviceDisplayName: String {
-        selectedDevice?.localizedName ?? selectedDLDevice?.name ?? "None selected"
+        selectedDevice?.localizedName ?? selectedDLDevice?.name
+            ?? selectedNDISource?.name ?? "None selected"
     }
 
     // MARK: – Setup configuration
@@ -26,13 +32,17 @@ final class AppState: ObservableObject {
     @Published var roiRect: CGRect = CGRect(x: 0.3, y: 0.3, width: 0.4, height: 0.4)
     @Published var targetAppURL: URL? = nil
     @Published var targetAppName: String = "None selected"
-    @Published var recordHotkey: HotkeyDefinition = HotkeyDefinition()
-    @Published var stopHotkey: HotkeyDefinition = HotkeyDefinition()
+    /// Shortcuts sent in order when REC / STBY is detected (at least one slot).
+    @Published var recordHotkeys: [HotkeyDefinition] = [HotkeyDefinition()]
+    @Published var stopHotkeys:   [HotkeyDefinition] = [HotkeyDefinition()]
 
     // MARK: – Live mode state
 
     @Published var isLiveMode: Bool = false
     @Published var isRecording: Bool = false
+    /// Live mode always shows STBY / REC in the menu bar; this adds the floating
+    /// badge, which stays visible when a full-screen app hides the menu bar.
+    @Published var showFloatingBadge: Bool = false
 
     // MARK: – Detection tuning
 
@@ -46,8 +56,11 @@ final class AppState: ObservableObject {
     var isFullyConfigured: Bool {
         hasSelectedDevice &&
         targetAppURL != nil &&
-        recordHotkey.isValid &&
-        stopHotkey.isValid
+        hasValidShortcuts
+    }
+
+    var hasValidShortcuts: Bool {
+        recordHotkeys.contains { $0.isValid } && stopHotkeys.contains { $0.isValid }
     }
 
     // MARK: – Persistence
@@ -59,6 +72,9 @@ final class AppState: ObservableObject {
         if let dl = selectedDLDevice {
             d.set("decklink",  forKey: "selectedDeviceType")
             d.set(dl.name,     forKey: "selectedDLDeviceName")
+        } else if let ndi = selectedNDISource {
+            d.set("ndi",     forKey: "selectedDeviceType")
+            d.set(ndi.name,  forKey: "selectedNDISourceName")
         } else if let av = selectedDevice {
             d.set("avfoundation",  forKey: "selectedDeviceType")
             d.set(av.uniqueID,     forKey: "selectedDeviceID")
@@ -77,18 +93,17 @@ final class AppState: ObservableObject {
         d.set(roiRect.height, forKey: "roiHeight")
 
         // Hotkeys
-        d.set(Int(recordHotkey.keyCode),            forKey: "recordKeyCode")
-        d.set(Int(recordHotkey.modifiers.rawValue),  forKey: "recordModifiers")
-        d.set(recordHotkey.displayString,            forKey: "recordDisplayString")
-        d.set(Int(stopHotkey.keyCode),               forKey: "stopKeyCode")
-        d.set(Int(stopHotkey.modifiers.rawValue),    forKey: "stopModifiers")
-        d.set(stopHotkey.displayString,              forKey: "stopDisplayString")
+        d.set(recordHotkeys.filter(\.isValid).map(\.dictionary), forKey: "recordHotkeys")
+        d.set(stopHotkeys.filter(\.isValid).map(\.dictionary),   forKey: "stopHotkeys")
 
         // Detection tuning
         d.set(redThreshold,   forKey: "redThreshold")
         d.set(redHueWidth,    forKey: "redHueWidth")
         d.set(minSaturation,  forKey: "minSaturation")
         d.set(minBrightness,  forKey: "minBrightness")
+
+        // Live mode
+        d.set(showFloatingBadge, forKey: "showFloatingBadge")
     }
 
     func loadFromDefaults() {
@@ -101,6 +116,13 @@ final class AppState: ObservableObject {
                DLDeviceEnumerator.isAvailable() {
                 selectedDLDevice = DLDeviceEnumerator.availableDevices()
                     .first { $0.name == name }
+            }
+        } else if deviceType == "ndi" {
+            // NDI connects by name, so no discovery round-trip is needed here;
+            // the receiver simply waits until the source is on the network.
+            if let name = d.string(forKey: "selectedNDISourceName"),
+               NDISourceFinder.isAvailable() {
+                selectedNDISource = NDISource(name: name)
             }
         } else {
             if let uid = d.string(forKey: "selectedDeviceID") {
@@ -135,24 +157,36 @@ final class AppState: ObservableObject {
         }
 
         // Hotkeys
-        if d.object(forKey: "recordKeyCode") != nil {
-            recordHotkey = HotkeyDefinition(
-                keyCode:       UInt16(d.integer(forKey: "recordKeyCode")),
-                modifiers:     NSEvent.ModifierFlags(rawValue: UInt(d.integer(forKey: "recordModifiers"))),
-                displayString: d.string(forKey: "recordDisplayString") ?? "")
-        }
-        if d.object(forKey: "stopKeyCode") != nil {
-            stopHotkey = HotkeyDefinition(
-                keyCode:       UInt16(d.integer(forKey: "stopKeyCode")),
-                modifiers:     NSEvent.ModifierFlags(rawValue: UInt(d.integer(forKey: "stopModifiers"))),
-                displayString: d.string(forKey: "stopDisplayString") ?? "")
-        }
+        recordHotkeys = Self.loadHotkeys(d, listKey: "recordHotkeys", legacyPrefix: "record")
+        stopHotkeys   = Self.loadHotkeys(d, listKey: "stopHotkeys",   legacyPrefix: "stop")
 
         // Detection tuning
         if d.object(forKey: "redThreshold")  != nil { redThreshold  = d.double(forKey: "redThreshold") }
         if d.object(forKey: "redHueWidth")   != nil { redHueWidth   = d.double(forKey: "redHueWidth") }
         if d.object(forKey: "minSaturation") != nil { minSaturation = d.double(forKey: "minSaturation") }
         if d.object(forKey: "minBrightness") != nil { minBrightness = d.double(forKey: "minBrightness") }
+
+        // Live mode
+        showFloatingBadge = d.bool(forKey: "showFloatingBadge")
+    }
+}
+
+extension AppState {
+    /// Reads a shortcut list, falling back to the single shortcut saved by
+    /// earlier versions ("recordKeyCode", "recordModifiers", …).
+    fileprivate static func loadHotkeys(_ d: UserDefaults, listKey: String,
+                                        legacyPrefix: String) -> [HotkeyDefinition] {
+        if let list = d.array(forKey: listKey) as? [[String: Any]] {
+            let hotkeys = list.compactMap(HotkeyDefinition.init(dictionary:))
+            if !hotkeys.isEmpty { return hotkeys }
+        }
+        if d.object(forKey: legacyPrefix + "KeyCode") != nil {
+            return [HotkeyDefinition(
+                keyCode:       UInt16(d.integer(forKey: legacyPrefix + "KeyCode")),
+                modifiers:     NSEvent.ModifierFlags(rawValue: UInt(d.integer(forKey: legacyPrefix + "Modifiers"))),
+                displayString: d.string(forKey: legacyPrefix + "DisplayString") ?? "")]
+        }
+        return [HotkeyDefinition()]
     }
 }
 
@@ -163,4 +197,25 @@ struct HotkeyDefinition: Equatable {
     var modifiers: NSEvent.ModifierFlags = []
     var displayString: String = ""
     var isValid: Bool { !displayString.isEmpty }
+}
+
+extension HotkeyDefinition {
+    var dictionary: [String: Any] {
+        ["keyCode": Int(keyCode), "modifiers": Int(modifiers.rawValue), "display": displayString]
+    }
+
+    init?(dictionary d: [String: Any]) {
+        guard let code = d["keyCode"] as? Int, let display = d["display"] as? String,
+              !display.isEmpty else { return nil }
+        self.init(keyCode: UInt16(code),
+                  modifiers: NSEvent.ModifierFlags(rawValue: UInt(d["modifiers"] as? Int ?? 0)),
+                  displayString: display)
+    }
+}
+
+extension Array where Element == HotkeyDefinition {
+    /// "⌥R → ⌘S", for summaries and logs.
+    var sequenceDisplay: String {
+        filter(\.isValid).map(\.displayString).joined(separator: " → ")
+    }
 }

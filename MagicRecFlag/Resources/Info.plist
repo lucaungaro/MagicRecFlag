@@ -25,6 +25,14 @@
     <key>NSCameraUsageDescription</key>
     <string>Magic Rec Flag needs camera access to monitor the video feed from your capture device for the red tally signal.</string>
 
+    <!-- Local network (NDI source discovery and reception) -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>Magic Rec Flag needs local network access to find and receive NDI video sources.</string>
+    <key>NSBonjourServices</key>
+    <array>
+        <string>_ndi._tcp</string>
+    </array>
+
     <!-- Accessibility (for CGEvent keystroke injection) -->
     <key>NSAppleEventsUsageDescription</key>
     <string>Magic Rec Flag needs Accessibility access to send keyboard shortcuts to your recording application.</string>

@@ -5,10 +5,12 @@ import AVFoundation
 // Unified device item shown in the list
 // ---------------------------------------------------------------------------
 struct DeviceListItem: Identifiable {
+    enum Kind { case avFoundation, deckLink, ndi }
+
     let id: String
     let name: String
     let subtitle: String
-    let isDeckLink: Bool
+    let kind: Kind
 }
 
 struct DevicePickerView: View {
@@ -29,6 +31,8 @@ struct DevicePickerView: View {
             // Restore visual selection from persisted AppState — no state write needed
             if let dl = state.selectedDLDevice {
                 vm.selectedID = dl.deviceID
+            } else if let ndi = state.selectedNDISource {
+                vm.selectedID = ndi.sourceID
             } else if let av = state.selectedDevice {
                 vm.selectedID = av.uniqueID
             }
@@ -43,7 +47,8 @@ struct DevicePickerView: View {
                 .font(.title2).bold()
             Text("All video capture devices recognised by macOS are listed below. "
                  + "AJA and Blackmagic devices appear automatically once their drivers "
-                 + "are installed. DeckLink devices use native capture (no virtual camera needed).")
+                 + "are installed. DeckLink devices and NDI sources on the network use native "
+                 + "capture (no virtual camera needed).")
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -85,7 +90,8 @@ struct DevicePickerView: View {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 40)).foregroundColor(.secondary)
             Text("No Capture Devices Found").font(.headline)
-            Text("Connect your device and click Refresh.")
+            Text(vm.isSearchingNDI ? "Looking for NDI sources…"
+                                   : "Connect your device and click Refresh.")
                 .foregroundColor(.secondary).multilineTextAlignment(.center)
             Spacer()
         }
@@ -94,7 +100,7 @@ struct DevicePickerView: View {
 
     private func deviceRow(_ item: DeviceListItem) -> some View {
         HStack(spacing: 12) {
-            Image(systemName: item.isDeckLink ? "cable.connector" : "camera")
+            Image(systemName: icon(for: item.kind))
                 .foregroundColor(.accentColor).frame(width: 20)
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name).fontWeight(.medium)
@@ -102,8 +108,8 @@ struct DevicePickerView: View {
                     .font(.caption2).foregroundColor(.secondary).lineLimit(1)
             }
             Spacer()
-            if item.isDeckLink {
-                Text("DeckLink")
+            if let badge = badge(for: item.kind) {
+                Text(badge)
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.accentColor.opacity(0.15))
                     .foregroundColor(.accentColor)
@@ -119,20 +125,40 @@ struct DevicePickerView: View {
         .padding(.vertical, 10)
     }
 
+    private func icon(for kind: DeviceListItem.Kind) -> String {
+        switch kind {
+        case .deckLink:     return "cable.connector"
+        case .ndi:          return "network"
+        case .avFoundation: return "camera"
+        }
+    }
+
+    private func badge(for kind: DeviceListItem.Kind) -> String? {
+        switch kind {
+        case .deckLink:     return "DeckLink"
+        case .ndi:          return "NDI"
+        case .avFoundation: return nil
+        }
+    }
+
     // MARK: – Selection (called from tap gesture — outside view update)
 
     private func selectDevice(_ item: DeviceListItem) {
-        print("[DevicePicker] selectDevice '\(item.name)' isDeckLink=\(item.isDeckLink) id=\(item.id)")
-        if item.isDeckLink {
+        print("[DevicePicker] selectDevice '\(item.name)' kind=\(item.kind) id=\(item.id)")
+        state.selectedDevice    = nil
+        state.selectedDLDevice  = nil
+        state.selectedNDISource = nil
+        switch item.kind {
+        case .deckLink:
             let dev = vm.dlDevices[item.id]
             print("[DevicePicker] DLDevice lookup → \(dev?.name ?? "NIL — key not found")")
-            state.selectedDevice   = nil
             state.selectedDLDevice = dev
-        } else {
-            state.selectedDLDevice = nil
-            state.selectedDevice   = vm.avDevices[item.id]
+        case .ndi:
+            state.selectedNDISource = vm.ndiSources[item.id]
+        case .avFoundation:
+            state.selectedDevice = vm.avDevices[item.id]
         }
-        print("[DevicePicker] AppState after: DL=\(state.selectedDLDevice?.name ?? "nil") AV=\(state.selectedDevice?.localizedName ?? "nil")")
+        print("[DevicePicker] AppState after: DL=\(state.selectedDLDevice?.name ?? "nil") NDI=\(state.selectedNDISource?.name ?? "nil") AV=\(state.selectedDevice?.localizedName ?? "nil")")
     }
 }
 
@@ -143,14 +169,21 @@ struct DevicePickerView: View {
 final class DevicePickerViewModel: ObservableObject {
     @Published var items:      [DeviceListItem] = []
     @Published var selectedID: String?           = nil
+    @Published var isSearchingNDI                = false
 
-    var avDevices: [String: AVCaptureDevice] = [:]
-    var dlDevices: [String: DLDevice]        = [:]
+    var avDevices:  [String: AVCaptureDevice] = [:]
+    var dlDevices:  [String: DLDevice]        = [:]
+    var ndiSources: [String: NDISource]       = [:]
+
+    /// Incremented on every refresh so a slow NDI search never appends to a newer list.
+    private var refreshGeneration = 0
 
     func refresh() {
         var result: [DeviceListItem] = []
-        avDevices = [:]
-        dlDevices = [:]
+        avDevices  = [:]
+        dlDevices  = [:]
+        ndiSources = [:]
+        refreshGeneration += 1
 
         // DeckLink devices first — these are the preferred (native) capture path.
         var dlNames: [String] = []
@@ -162,7 +195,7 @@ final class DevicePickerViewModel: ObservableObject {
                 dlNames.append(dev.name)
                 result.append(DeviceListItem(id: dev.deviceID, name: dev.name,
                                              subtitle: "Blackmagic DeckLink — native capture",
-                                             isDeckLink: true))
+                                             kind: .deckLink))
             }
         } else {
             print("[DevicePicker] DeckLink runtime not available")
@@ -187,10 +220,35 @@ final class DevicePickerViewModel: ObservableObject {
             }
             avDevices[dev.uniqueID] = dev
             result.append(DeviceListItem(id: dev.uniqueID, name: dev.localizedName,
-                                         subtitle: dev.uniqueID, isDeckLink: false))
+                                         subtitle: dev.uniqueID, kind: .avFoundation))
         }
 
         items = result
+        refreshNDISources(generation: refreshGeneration)
+    }
+
+    /// NDI discovery waits for network announcements on the first call, so it
+    /// runs off the main thread and its sources are appended when it returns.
+    private func refreshNDISources(generation: Int) {
+        guard NDISourceFinder.isAvailable() else {
+            print("[DevicePicker] NDI runtime not available")
+            return
+        }
+        isSearchingNDI = true
+        Task.detached(priority: .userInitiated) {
+            let sources = NDISourceFinder.availableSources(withTimeout: 2000)
+            await MainActor.run {
+                guard generation == self.refreshGeneration else { return }
+                self.isSearchingNDI = false
+                print("[DevicePicker] NDI sources: \(sources.count) → \(sources.map { $0.name })")
+                for src in sources {
+                    self.ndiSources[src.sourceID] = src
+                    self.items.append(DeviceListItem(id: src.sourceID, name: src.name,
+                                                     subtitle: "NDI — native network capture",
+                                                     kind: .ndi))
+                }
+            }
+        }
     }
 
     /// True when an AVFoundation device name refers to the same hardware as one of

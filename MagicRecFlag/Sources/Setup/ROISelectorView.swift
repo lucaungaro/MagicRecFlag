@@ -15,15 +15,20 @@ struct ROISelectorView: View {
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            // Live preview + ROI overlay
+            // Live preview + ROI overlay. The preview is aspect-fit, so the overlay
+            // covers only the picture (not the black bars): its normalised rect is
+            // then the same one the analyser applies to the frame.
             GeometryReader { geo in
+                let picture = fittedRect(in: geo.size)
                 ZStack {
                     previewView
                         .cornerRadius(8)
                         .overlay(RoundedRectangle(cornerRadius: 8)
                             .stroke(Color.secondary.opacity(0.4), lineWidth: 1))
 
-                    ROIOverlayView(roiRect: $state.roiRect, containerSize: geo.size)
+                    ROIOverlayView(roiRect: $state.roiRect, containerSize: picture.size)
+                        .frame(width: picture.width, height: picture.height)
+                        .position(x: picture.midX, y: picture.midY)
                 }
             }
             .frame(maxHeight: .infinity)
@@ -38,6 +43,7 @@ struct ROISelectorView: View {
                     Text("\(Int(state.redThreshold * 100))%").frame(width: 40)
                 }
                 .font(.caption)
+                liveReadout
             }
             .padding(10)
             .background(Color(NSColor.controlBackgroundColor))
@@ -46,10 +52,14 @@ struct ROISelectorView: View {
         .padding(24)
         .onAppear {
             print("[ROI] selectedDLDevice: \(state.selectedDLDevice?.name ?? "nil")")
+            print("[ROI] selectedNDISource: \(state.selectedNDISource?.name ?? "nil")")
             print("[ROI] selectedAVDevice: \(state.selectedDevice?.localizedName ?? "nil")")
             if let dl = state.selectedDLDevice {
                 print("[ROI] → startDeckLink: \(dl.name)")
                 preview.startDeckLink(device: dl)
+            } else if let ndi = state.selectedNDISource {
+                print("[ROI] → startNDI: \(ndi.name)")
+                preview.startNDI(source: ndi)
             } else if let av = state.selectedDevice {
                 print("[ROI] → startAVFoundation: \(av.localizedName)")
                 preview.startAVFoundation(device: av)
@@ -60,11 +70,38 @@ struct ROISelectorView: View {
         .onDisappear { preview.stop() }
     }
 
+    /// Live share of red pixels in the region, against the threshold, so the
+    /// threshold can be set from what the analyser actually sees.
+    @ViewBuilder
+    private var liveReadout: some View {
+        HStack(spacing: 6) {
+            if let fraction = preview.redFraction {
+                let triggers = fraction >= state.redThreshold
+                Circle()
+                    .fill(triggers ? Color.red : Color.secondary.opacity(0.4))
+                    .frame(width: 8, height: 8)
+                Text("Red in region now: \(Int((fraction * 100).rounded()))% — "
+                     + (triggers ? "would trigger REC" : "below threshold, stays STBY"))
+            } else {
+                Text("Red in region now: —")
+            }
+        }
+        .font(.caption)
+        .foregroundColor(.secondary)
+    }
+
+    /// The area the aspect-fit preview picture occupies inside `container`.
+    private func fittedRect(in container: CGSize) -> CGRect {
+        let bounds = CGRect(origin: .zero, size: container)
+        guard let video = preview.videoSize, video.width > 0, video.height > 0 else { return bounds }
+        return AVMakeRect(aspectRatio: video, insideRect: bounds)
+    }
+
     @ViewBuilder
     private var previewView: some View {
-        if preview.isDeckLink {
-            // DeckLink: render frames as NSImage
-            if let img = preview.dlPreviewImage {
+        if let waitingText = preview.frameSourceWaitingText {
+            // DeckLink / NDI: render frames as NSImage
+            if let img = preview.framePreviewImage {
                 Image(nsImage: img)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
@@ -75,7 +112,7 @@ struct ROISelectorView: View {
                     Color.black
                     VStack(spacing: 8) {
                         ProgressView()
-                        Text("Waiting for DeckLink signal…")
+                        Text(waitingText)
                             .font(.caption).foregroundColor(.secondary)
                     }
                 }
@@ -188,7 +225,7 @@ struct ROIOverlayView: View {
     }
 
     private func clamp(_ r: CGRect) -> CGRect {
-        let minSize: CGFloat = 0.05
+        let minSize: CGFloat = 0.01   // small enough for a tally dot (~20 px on 1920)
         return CGRect(
             x: max(0, min(r.minX, 1 - minSize)),
             y: max(0, min(r.minY, 1 - minSize)),
@@ -241,20 +278,28 @@ final class PreviewCaptureSession: NSObject, ObservableObject,
     private let avQueue  = DispatchQueue(label: "preview.av.frames")
     private var avFrameCount = 0
 
-    // DeckLink
-    private var dlCaptureSession: DLCaptureSession?
+    // DeckLink / NDI — frames delivered as pixel buffers, rendered as NSImage
+    private var dlCaptureSession:  DLCaptureSession?
+    private var ndiCaptureSession: NDICaptureSession?
     private let ciContext  = CIContext()
     private var frameCount = 0
 
-    @Published var isDeckLink:      Bool     = false
-    @Published var dlPreviewImage:  NSImage? = nil
+    /// Non-nil while previewing a DeckLink or NDI source (no AVCaptureSession);
+    /// shown until the first frame arrives.
+    @Published var frameSourceWaitingText: String?  = nil
+    @Published var framePreviewImage:      NSImage? = nil
+
+    /// Pixel size of the incoming frames (for mapping the ROI onto the picture).
+    @Published var videoSize:   CGSize? = nil
+    /// Live share of red pixels in the current ROI, with the current tuning.
+    @Published var redFraction: Double? = nil
 
     override init() { super.init() }
 
     // MARK: AVFoundation start
 
     func startAVFoundation(device: AVCaptureDevice) {
-        isDeckLink = false
+        frameSourceWaitingText = nil
         let status = AVCaptureDevice.authorizationStatus(for: .video)
         print("[Preview/AV] auth status: \(status.rawValue) (0=notDetermined 1=restricted 2=denied 3=authorized)")
 
@@ -275,6 +320,10 @@ final class PreviewCaptureSession: NSObject, ObservableObject,
         // (independent of the preview layer).
         if avOutput.sampleBufferDelegate == nil, avSession.canAddOutput(avOutput) {
             avOutput.setSampleBufferDelegate(self, queue: avQueue)
+            // Same format as the live CaptureEngine, so the readout matches it.
+            avOutput.videoSettings = [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+            ]
             avSession.addOutput(avOutput)
         }
         avSession.commitConfiguration()
@@ -291,25 +340,59 @@ final class PreviewCaptureSession: NSObject, ObservableObject,
                        from connection: AVCaptureConnection) {
         avFrameCount += 1
         if avFrameCount <= 3 { print("[Preview/AV] frame \(avFrameCount) arrived ✓") }
+        guard avFrameCount % 2 == 0,
+              let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        measure(imageBuffer)
     }
 
     // MARK: DeckLink start
 
     func startDeckLink(device: DLDevice) {
-        isDeckLink = true
+        frameSourceWaitingText = "Waiting for DeckLink signal…"
         guard let cap = DLCaptureSession(device: device) else {
             print("[Preview] Could not create DLCaptureSession")
             return
         }
         dlCaptureSession = cap
-        cap.start { [weak self] pixelBuffer in
-            guard let self else { return }
-            self.frameCount += 1
-            guard self.frameCount % 2 == 0 else { return }   // ~15 fps is enough for setup
-            let ci = CIImage(cvPixelBuffer: pixelBuffer)
-            guard let cg = self.ciContext.createCGImage(ci, from: ci.extent) else { return }
-            let img = NSImage(cgImage: cg, size: .zero)
-            DispatchQueue.main.async { self.dlPreviewImage = img }
+        cap.start { [weak self] pixelBuffer in self?.showFrame(pixelBuffer) }
+    }
+
+    // MARK: NDI start
+
+    func startNDI(source: NDISource) {
+        frameSourceWaitingText = "Waiting for NDI source “\(source.name)”…"
+        guard let cap = NDICaptureSession(source: source) else {
+            print("[Preview] Could not create NDICaptureSession")
+            return
+        }
+        ndiCaptureSession = cap
+        cap.start { [weak self] pixelBuffer in self?.showFrame(pixelBuffer) }
+    }
+
+    private func showFrame(_ pixelBuffer: CVPixelBuffer) {
+        frameCount += 1
+        guard frameCount % 2 == 0 else { return }   // ~15 fps is enough for setup
+        measure(pixelBuffer)
+        let ci = CIImage(cvPixelBuffer: pixelBuffer)
+        guard let cg = ciContext.createCGImage(ci, from: ci.extent) else { return }
+        let img = NSImage(cgImage: cg, size: .zero)
+        DispatchQueue.main.async { self.framePreviewImage = img }
+    }
+
+    /// Runs the live analyser on a preview frame (called on the capture thread).
+    private func measure(_ pixelBuffer: CVPixelBuffer) {
+        let state = AppState.shared
+        let fraction = ROIAnalyzer.redFraction(
+            pixelBuffer:   pixelBuffer,
+            roi:           state.roiRect,
+            redHueWidth:   state.redHueWidth,
+            minSaturation: state.minSaturation,
+            minBrightness: state.minBrightness)
+        let size = CGSize(width: CVPixelBufferGetWidth(pixelBuffer),
+                          height: CVPixelBufferGetHeight(pixelBuffer))
+        DispatchQueue.main.async {
+            if self.videoSize != size { self.videoSize = size }
+            self.redFraction = fraction
         }
     }
 
@@ -319,6 +402,9 @@ final class PreviewCaptureSession: NSObject, ObservableObject,
         avSession.stopRunning()
         dlCaptureSession?.stop()
         dlCaptureSession = nil
-        isDeckLink = false
+        ndiCaptureSession?.stop()
+        ndiCaptureSession = nil
+        frameSourceWaitingText = nil
+        redFraction = nil
     }
 }

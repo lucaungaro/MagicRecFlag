@@ -23,6 +23,7 @@
 		A014 /* Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = F014 /* Info.plist */; };
 		A016 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = F018 /* Assets.xcassets */; };
 		A015 /* DeckLinkBridge.mm in Sources */ = {isa = PBXBuildFile; fileRef = F016 /* DeckLinkBridge.mm */; };
+		A017 /* NDIBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = F020 /* NDIBridge.m */; };
 
 		/* Frameworks */
 		B001 /* AVFoundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C001 /* AVFoundation.framework */; };
@@ -50,6 +51,8 @@
 		F015 /* DeckLinkBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = DeckLinkBridge.h; sourceTree = "<group>"; };
 		F016 /* DeckLinkBridge.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = DeckLinkBridge.mm; sourceTree = "<group>"; };
 		F017 /* MagicRecFlag-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "MagicRecFlag-Bridging-Header.h"; sourceTree = "<group>"; };
+		F019 /* NDIBridge.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = NDIBridge.h; sourceTree = "<group>"; };
+		F020 /* NDIBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = NDIBridge.m; sourceTree = "<group>"; };
 		FAPP /* Magic Rec Flag.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Magic Rec Flag.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 
 		/* Frameworks */
@@ -85,6 +88,7 @@
 				GRP_HUD /* HUD */,
 				GRP_ACTIONS /* Actions */,
 				GRP_DECKLINK /* DeckLink */,
+				GRP_NDI /* NDI */,
 				GRP_RESOURCES /* Resources */,
 				GRP_FW /* Frameworks */,
 				GRP_PRODUCTS /* Products */,
@@ -170,6 +174,15 @@
 				F017 /* MagicRecFlag-Bridging-Header.h */,
 			);
 			path = MagicRecFlag/DeckLink;
+			sourceTree = "<group>";
+		};
+		GRP_NDI /* NDI */ = {
+			isa = PBXGroup;
+			children = (
+				F019 /* NDIBridge.h */,
+				F020 /* NDIBridge.m */,
+			);
+			path = MagicRecFlag/NDI;
 			sourceTree = "<group>";
 		};
 		GRP_FW /* Frameworks */ = {
@@ -274,6 +287,7 @@
 				A012 /* ActionDispatcher.swift in Sources */,
 				A013 /* HUDWindowController.swift in Sources */,
 				A015 /* DeckLinkBridge.mm in Sources */,
+				A017 /* NDIBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
