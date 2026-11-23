@@ -9,18 +9,18 @@ struct HotkeySetupView: View {
             Text("Keyboard Shortcuts")
                 .font(.title2).bold()
 
-            Text("Set the shortcuts that Magic Rec Flag will send to your target application. These can be identical if your app uses one key to toggle recording.")
+            Text("Set the shortcuts that Magic Rec Flag will send to your target application. Add several to send them one after the other. Start and stop can be identical if your app uses one key to toggle recording.")
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             GroupBox {
                 VStack(spacing: 16) {
-                    HotkeyRow(label: "Start Recording", hotkey: $state.recordHotkey)
+                    HotkeySequenceRow(label: "Start Recording", hotkeys: $state.recordHotkeys)
                     Divider()
-                    HotkeyRow(label: "Stop Recording", hotkey: $state.stopHotkey)
+                    HotkeySequenceRow(label: "Stop Recording", hotkeys: $state.stopHotkeys)
 
-                    if state.recordHotkey.isValid && state.stopHotkey.isValid &&
-                       state.recordHotkey.displayString == state.stopHotkey.displayString {
+                    if state.hasValidShortcuts &&
+                       state.recordHotkeys.sequenceDisplay == state.stopHotkeys.sequenceDisplay {
                         Label("Same shortcut for start and stop — the app will toggle.", systemImage: "info.circle")
                             .font(.caption)
                             .foregroundColor(.secondary)
@@ -49,24 +49,63 @@ struct HotkeySetupView: View {
     }
 }
 
-// MARK: – Single hotkey row
+// MARK: – Shortcut sequence row
 
-struct HotkeyRow: View {
+/// One or more shortcuts, sent in order (top to bottom).
+struct HotkeySequenceRow: View {
     let label: String
-    @Binding var hotkey: HotkeyDefinition
+    @Binding var hotkeys: [HotkeyDefinition]
+
+    private let maxCount = 5
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top) {
             Text(label).frame(width: 160, alignment: .leading)
+                .padding(.top, 6)
             Spacer()
-            HotkeyRecorderField(hotkey: $hotkey)
-            if hotkey.isValid {
-                Button(action: { hotkey = HotkeyDefinition() }) {
-                    Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+            VStack(alignment: .trailing, spacing: 6) {
+                ForEach(hotkeys.indices, id: \.self) { i in
+                    HStack(spacing: 8) {
+                        Text(i == 0 ? "" : "then")
+                            .font(.caption).foregroundColor(.secondary)
+                            .frame(width: 30, alignment: .trailing)
+                        HotkeyRecorderField(hotkey: binding(at: i))
+                        removeButton(at: i)
+                    }
                 }
-                .buttonStyle(.plain)
+                if hotkeys.count < maxCount, hotkeys.last?.isValid == true {
+                    Button(action: { hotkeys.append(HotkeyDefinition()) }) {
+                        Label("Add shortcut", systemImage: "plus")
+                            .font(.caption)
+                    }
+                    .buttonStyle(.borderless)
+                    .padding(.trailing, 26)
+                }
             }
         }
+    }
+
+    // Bound by index; guards against the row being removed while SwiftUI
+    // still renders the old index.
+    private func binding(at i: Int) -> Binding<HotkeyDefinition> {
+        Binding(
+            get: { i < hotkeys.count ? hotkeys[i] : HotkeyDefinition() },
+            set: { if i < hotkeys.count { hotkeys[i] = $0 } })
+    }
+
+    /// Clears the only shortcut; removes any other one from the sequence.
+    @ViewBuilder
+    private func removeButton(at i: Int) -> some View {
+        let visible = hotkeys.count > 1 || (i < hotkeys.count && hotkeys[i].isValid)
+        Button(action: {
+            guard i < hotkeys.count else { return }
+            if hotkeys.count > 1 { hotkeys.remove(at: i) } else { hotkeys[0] = HotkeyDefinition() }
+        }) {
+            Image(systemName: "xmark.circle.fill").foregroundColor(.secondary)
+        }
+        .buttonStyle(.plain)
+        .opacity(visible ? 1 : 0)
+        .disabled(!visible)
     }
 }
 

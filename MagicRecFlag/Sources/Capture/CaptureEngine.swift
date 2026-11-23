@@ -16,6 +16,9 @@ final class CaptureEngine: NSObject {
     // DeckLink path
     private var dlSession: DLCaptureSession?
 
+    // NDI path
+    private var ndiSession: NDICaptureSession?
+
     // Debounce state (shared between both paths)
     private let triggerFrameCount = 3
     private var consecutiveRedFrames    = 0
@@ -29,6 +32,8 @@ final class CaptureEngine: NSObject {
     func start() {
         if let dl = AppState.shared.selectedDLDevice {
             startDeckLink(device: dl)
+        } else if let ndi = AppState.shared.selectedNDISource {
+            startNDI(source: ndi)
         } else if let av = AppState.shared.selectedDevice {
             startAVFoundation(device: av)
         }
@@ -38,6 +43,8 @@ final class CaptureEngine: NSObject {
         session.stopRunning()
         dlSession?.stop()
         dlSession = nil
+        ndiSession?.stop()
+        ndiSession = nil
         // Reset debounce state for next session
         consecutiveRedFrames    = 0
         consecutiveNonRedFrames = 0
@@ -77,20 +84,36 @@ final class CaptureEngine: NSObject {
         }
         dlSession = captureSession
         captureSession.start { [weak self] pixelBuffer in
-            guard let self else { return }
-            let isRed = ROIAnalyzer.analyseRedInROI(
-                pixelBuffer: pixelBuffer,
-                roi:           AppState.shared.roiRect,
-                threshold:     AppState.shared.redThreshold,
-                redHueWidth:   AppState.shared.redHueWidth,
-                minSaturation: AppState.shared.minSaturation,
-                minBrightness: AppState.shared.minBrightness
-            )
-            self.handleDetection(isRed: isRed)
+            self?.analyse(pixelBuffer: pixelBuffer)
+        }
+    }
+
+    // MARK: – NDI path
+
+    private func startNDI(source: NDISource) {
+        guard let captureSession = NDICaptureSession(source: source) else {
+            print("[CaptureEngine] Could not create NDICaptureSession")
+            return
+        }
+        ndiSession = captureSession
+        captureSession.start { [weak self] pixelBuffer in
+            self?.analyse(pixelBuffer: pixelBuffer)
         }
     }
 
     // MARK: – Shared detection logic
+
+    fileprivate func analyse(pixelBuffer: CVPixelBuffer) {
+        let isRed = ROIAnalyzer.analyseRedInROI(
+            pixelBuffer: pixelBuffer,
+            roi:           AppState.shared.roiRect,
+            threshold:     AppState.shared.redThreshold,
+            redHueWidth:   AppState.shared.redHueWidth,
+            minSaturation: AppState.shared.minSaturation,
+            minBrightness: AppState.shared.minBrightness
+        )
+        handleDetection(isRed: isRed)
+    }
 
     fileprivate func handleDetection(isRed: Bool) {
         if isRed {
@@ -117,14 +140,6 @@ extension CaptureEngine: AVCaptureVideoDataOutputSampleBufferDelegate {
                        didOutput sampleBuffer: CMSampleBuffer,
                        from connection: AVCaptureConnection) {
         guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        let isRed = ROIAnalyzer.analyseRedInROI(
-            pixelBuffer: imageBuffer,
-            roi:           AppState.shared.roiRect,
-            threshold:     AppState.shared.redThreshold,
-            redHueWidth:   AppState.shared.redHueWidth,
-            minSaturation: AppState.shared.minSaturation,
-            minBrightness: AppState.shared.minBrightness
-        )
-        handleDetection(isRed: isRed)
+        analyse(pixelBuffer: imageBuffer)
     }
 }

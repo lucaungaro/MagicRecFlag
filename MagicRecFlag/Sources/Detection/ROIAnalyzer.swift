@@ -21,11 +21,24 @@ enum ROIAnalyzer {
         minSaturation: Double,
         minBrightness: Double
     ) -> Bool {
+        redFraction(pixelBuffer: pixelBuffer, roi: roi, redHueWidth: redHueWidth,
+                    minSaturation: minSaturation, minBrightness: minBrightness) >= threshold
+    }
+
+    /// Fraction (0…1) of the pixels in `roi` that count as red. Also used by the
+    /// setup preview to show the live value next to the threshold.
+    static func redFraction(
+        pixelBuffer: CVPixelBuffer,
+        roi: CGRect,
+        redHueWidth: Double,
+        minSaturation: Double,
+        minBrightness: Double
+    ) -> Double {
 
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
 
-        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return false }
+        guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else { return 0 }
 
         let width  = CVPixelBufferGetWidth(pixelBuffer)
         let height = CVPixelBufferGetHeight(pixelBuffer)
@@ -37,7 +50,7 @@ enum ROIAnalyzer {
         let x1 = min(width,  Int(roi.maxX * Double(width)))
         let y1 = min(height, Int(roi.maxY * Double(height)))
 
-        guard x1 > x0, y1 > y0 else { return false }
+        guard x1 > x0, y1 > y0 else { return 0 }
 
         // Sample every Nth pixel for speed (stride = 2 → check 25% of pixels)
         let stride = 2
@@ -93,9 +106,8 @@ enum ROIAnalyzer {
             }
         }
 
-        guard totalCount > 0 else { return false }
-        let fraction = Double(redCount) / Double(totalCount)
-        return fraction >= threshold
+        guard totalCount > 0 else { return 0 }
+        return Double(redCount) / Double(totalCount)
     }
 
     // MARK: – HSV conversion + red test
