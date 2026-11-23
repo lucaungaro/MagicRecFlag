@@ -14,5 +14,12 @@
     <!-- Allows launching and activating other applications -->
     <key>com.apple.security.app-sandbox</key>
     <false/>
+
+    <!-- Lets the app load third-party code signed by other teams under Hardened
+         Runtime: Blackmagic's DeckLinkAPI.bundle and NDI's libndi.dylib, both
+         loaded at run time. No effect without Hardened Runtime (i.e. harmless in
+         non-notarized builds); required once the app is notarized. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
 </dict>
 </plist>
